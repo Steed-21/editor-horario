@@ -5,7 +5,7 @@ import { cellHours } from '../../domain/cell.js';
 export function renderHours() {
   const EMPLOYEES = store.EMPLOYEES;
   let h = '<table><thead><tr><th></th>';
-  DS.forEach((d, i) => h += `<th class="${i===4 ? 'vie' : i===5 ? 'sab' : ''}">${d}</th>`);
+  DS.forEach((d, i) => h += `<th class="${i===4 ? 'vie' : i===5 ? 'sab' : ''}">${d} ${store.currentDates[i].str}</th>`);
   h += '<th>Σh</th></tr></thead><tbody>';
   
   EMPLOYEES.forEach((e, pi) => {

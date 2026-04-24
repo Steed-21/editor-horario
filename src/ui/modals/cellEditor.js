@@ -13,26 +13,28 @@ export function openCellEditor(pi, di) {
 }
 
 export function renderCellModal(cell) {
-  document.getElementById('modalTitle').textContent = `${store.EMPLOYEES[store.currentEdit.pi].name} · ${DF[store.currentEdit.di]}`;
+  document.getElementById('modalTitle').textContent = `${store.EMPLOYEES[store.currentEdit.pi].name} · ${DF[store.currentEdit.di]} ${store.currentDates[store.currentEdit.di].str}`;
   const ids = Object.keys(store.SH);
   const opts = ids.map(id => {
     const sh = store.SH[id];
     const sel = cell.id === id ? ' selected' : '';
-    const lb = id === 'OFF' ? 'Libre' : `${sh.start}–${sh.end === 24 ? '24' : sh.end}`;
+    const lb = sh.start === sh.end ? sh.abbr || sh.name : `${sh.start}–${sh.end === 24 ? '24' : sh.end}`;
     const gh = shiftGrossHours(sh);
     const nh = shiftNetHours(sh);
-    const hText = id === 'OFF' ? '' : (sh.defaultBs !== null ? `${nh}h netas (${gh}h bruto)` : `${nh}h`);
-    return `<button class="shift-opt ${sh.cls}${sel}" onclick="window.selectShiftForCell('${id}')"><span class="opt-time">${id} · ${lb}</span><span class="opt-h">${sh.name}${hText ? ' · ' + hText : ''}</span></button>`;
+    const hText = sh.start === sh.end ? 'Turno sin horas' : (sh.defaultBs != null ? `${nh}h netas (${gh}h bruto)` : `${nh}h`);
+    return `<button class="shift-opt ${sh.cls}${sel}" onclick="window.selectShiftForCell('${id}')"><span class="opt-time">${sh.abbr || id} · ${lb}</span><span class="opt-h">${sh.name}${hText ? ' · ' + hText : ''}</span></button>`;
   }).join('');
 
   const sh = store.SH[cell.id];
   const canBrk = sh.id !== 'OFF' && (sh.end - sh.start) >= 2;
   const bsMin = sh.start;
   const bsMax = sh.end - 1;
-  const brkA = cell.bs !== null;
+  const brkA = cell.bs != null;
   const netH = cellHours(cell);
 
-  const brkS = sh.id === 'OFF' ? '' : `
+  const brkS = (sh.start === sh.end) ? `
+    <div class="info-box"><strong>Turno sin horas</strong> (Libre/Baja)</div>
+  ` : `
     <div class="section-title">Descanso individual</div>
     <div class="edit-grid">
       <label>Descanso</label>
@@ -65,7 +67,7 @@ export function toggleCellBreak() {
   const ck = document.getElementById('cellBrk').checked;
   const cell = store.schedule[pi][di];
   const sh = store.SH[cell.id];
-  cell.bs = ck ? (sh.defaultBs !== null ? sh.defaultBs : sh.start + Math.floor((sh.end - sh.start) / 2)) : null;
+  cell.bs = ck ? (sh.defaultBs != null ? sh.defaultBs : sh.start + Math.floor((sh.end - sh.start) / 2)) : null;
   store.edited[pi][di] = true;
   renderCellModal(cell);
 }
@@ -85,7 +87,7 @@ export function updateCellBreak() {
 export function confirmCellEdit() {
   const { pi, di } = store.currentEdit;
   const cell = store.schedule[pi][di];
-  const bt = cell.bs !== null ? ` ⏸${cell.bs}–${cell.bs + 1}` : ' sin⏸';
+  const bt = cell.bs != null ? ` ⏸${cell.bs}–${cell.bs + 1}` : ' sin⏸';
   log(`${store.EMPLOYEES[pi].name} · ${DF[di].slice(0, 3)}: ${cell.id}${bt} (${cellHours(cell)}h)`, 'ok');
   closeModal();
   render();

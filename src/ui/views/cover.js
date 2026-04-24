@@ -7,7 +7,7 @@ export function renderCover() {
   const schedule = store.schedule;
   
   let h = '<table><thead><tr><th></th>';
-  DS.forEach((d, i) => h += `<th class="${i===4 ? 'vie' : i===5 ? 'sab' : ''}">${d}</th>`);
+  DS.forEach((d, i) => h += `<th class="${i===4 ? 'vie' : i===5 ? 'sab' : ''}">${d} ${store.currentDates[i].str}</th>`);
   h += '</tr></thead><tbody>';
   
   for (let hr = 9; hr <= 23; hr++) {

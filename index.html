@@ -3,20 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Editor Horario Tienda · v5.1.0</title>
+  <title>Sistema Horario · v5.1.0</title>
 </head>
 <body>
   <div class="container">
     <h2 class="sr-only">Editor horario v5.1</h2>
     <div class="header">
       <div class="title-block">
-        <div class="title">// editor.horario</div>
+        <div class="title">// SISTEMA.HORARIO</div>
         <div class="subtitle" id="subtitleTxt">tienda · N personas · v5.1.0</div>
       </div>
       <div class="nav">
-        <button class="nav-btn" id="bPrev">← anterior</button>
-        <span class="week-tag" id="wLabel">SEMANA_1</span>
-        <button class="nav-btn" id="bNext">siguiente →</button>
+        <button id="bLogin" class="nav-btn" style="border-color:transparent">Admin</button>
+        <input type="date" id="datePicker" class="nav-btn" style="padding:2px 4px; height: 21px; font-family: inherit;"/>
+        <button class="nav-btn" id="bPrev">← ant</button>
+        <span class="week-tag" id="wLabel">...</span>
+        <button class="nav-btn" id="bNext">sig →</button>
       </div>
     </div>
     <div class="dashboard">

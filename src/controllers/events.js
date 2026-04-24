@@ -8,6 +8,9 @@ import { openShiftBaseEditor } from '../ui/modals/shiftEditor.js';
 import { openEmployeesEditor } from '../ui/modals/empEditor.js';
 import { DEFAULT_SHIFTS } from '../config/shifts.js';
 import { DEFAULT_EMPLOYEES } from '../config/employees.js';
+import { getMonday } from '../domain/dateUtils.js';
+import { getCurrentWeekStr, saveState } from '../state/store.js';
+import { auth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from '../services/firebase.js';
 
 import { openCellEditor, selectShiftForCell, toggleCellBreak, updateCellBreak, confirmCellEdit } from '../ui/modals/cellEditor.js';
 import { createCustomShift, deleteShift, openSingleShiftEditor, previewShiftHours, saveShiftEdit } from '../ui/modals/shiftEditor.js';
@@ -39,20 +42,65 @@ export function setupEvents() {
     if(e.target.id === 'modalBg') closeModal();
   });
 
-  document.getElementById('bPrev')?.addEventListener('click', () => {
-    if(store.wo > 0) {
-      store.wo--;
-      regenSchedule();
-      log(`SEMANA_${store.wo + 1}`, 'info');
-      render();
+  onAuthStateChanged(auth, (user) => {
+    store.isAdmin = !!user;
+    const bLogin = document.getElementById('bLogin');
+    if (bLogin) {
+      if (user) {
+        bLogin.textContent = 'Salir';
+        bLogin.style.color = '#1D9E75';
+      } else {
+        bLogin.textContent = 'Admin';
+        bLogin.style.color = 'var(--text-secondary)';
+      }
+    }
+    render();
+  });
+
+  document.getElementById('bLogin')?.addEventListener('click', () => {
+    if (store.isAdmin) {
+      signOut(auth);
+    } else {
+      const email = prompt('Correo de administrador:');
+      if (!email) return;
+      const pwd = prompt('Contraseña:');
+      if (!pwd) return;
+      
+      signInWithEmailAndPassword(auth, email, pwd).catch(err => {
+        alert('Error al iniciar sesión: ' + err.message);
+      });
     }
   });
 
-  document.getElementById('bNext')?.addEventListener('click', () => {
-    store.wo++;
-    regenSchedule();
-    log(`SEMANA_${store.wo + 1}`, 'info');
+  function navigateWeek(delta, newDateStr = null) {
+    store.weeks[getCurrentWeekStr()] = { schedule: store.schedule, edited: store.edited };
+    if (newDateStr) {
+      store.baseDate = getMonday(newDateStr);
+      store.wo = 0;
+    } else {
+      store.wo += delta;
+    }
+    const wk = getCurrentWeekStr();
+    if (store.weeks[wk]) {
+      store.schedule = store.weeks[wk].schedule;
+      store.edited = store.weeks[wk].edited;
+    } else {
+      regenSchedule();
+    }
+    log(`Semana: ${wk}`, 'info');
     render();
+  }
+
+  document.getElementById('datePicker')?.addEventListener('change', (e) => {
+    if (e.target.value) navigateWeek(0, e.target.value);
+  });
+
+  document.getElementById('bPrev')?.addEventListener('click', () => {
+    navigateWeek(-1);
+  });
+
+  document.getElementById('bNext')?.addEventListener('click', () => {
+    navigateWeek(1);
   });
 
   document.getElementById('bReset')?.addEventListener('click', () => {
