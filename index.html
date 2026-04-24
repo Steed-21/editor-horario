@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Editor Horario Tienda · v5.1.0</title>
+</head>
+<body>
+  <div class="container">
+    <h2 class="sr-only">Editor horario v5.1</h2>
+    <div class="header">
+      <div class="title-block">
+        <div class="title">// editor.horario</div>
+        <div class="subtitle" id="subtitleTxt">tienda · N personas · v5.1.0</div>
+      </div>
+      <div class="nav">
+        <button class="nav-btn" id="bPrev">← anterior</button>
+        <span class="week-tag" id="wLabel">SEMANA_1</span>
+        <button class="nav-btn" id="bNext">siguiente →</button>
+      </div>
+    </div>
+    <div class="dashboard">
+      <div>
+        <div class="tabs">
+          <button class="tab active" data-view="person">Por persona</button>
+          <button class="tab" data-view="day">Por día</button>
+          <button class="tab" data-view="cover">Cobertura</button>
+          <button class="tab" data-view="hours">Horas</button>
+        </div>
+        <div class="grid-wrap" id="tContainer"></div>
+        <div class="legend-block" id="legendBlock"></div>
+      </div>
+      <div class="metrics-side" id="metricsSide"></div>
+    </div>
+    <div class="actions">
+      <button class="action-btn" id="bEditEmps">👥 Empleados</button>
+      <button class="action-btn" id="bEditShifts">✎ Turnos base</button>
+      <button class="action-btn" id="bReset">↻ Restablecer</button>
+      <button class="action-btn primary" id="bLock">✓ Confirmar</button>
+    </div>
+    <div class="log-panel" id="logPanel">
+      <!-- initial empty, renderLog fills this -->
+    </div>
+    <div class="modal-bg" id="modalBg">
+      <div class="modal" id="modalBox">
+        <div class="modal-title" id="modalTitle">Seleccionar turno</div>
+        <div id="modalBody"></div>
+        <button class="modal-close" id="modalClose">Cerrar</button>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
