@@ -16,12 +16,23 @@ export function validate() {
   let cierre_ok = true, apertura_ok = true;
 
   for (let di = 0; di < 7; di++) {
-    const cl = EMPLOYEES.reduce((a, _, pi) => a + (CLOSERS.has(schedule[pi][di].id) ? 1 : 0), 0);
+    const closeH = CLOSE24.has(di) ? 24 : 23;
+    let cl = 0;
+    let op = 0;
+    
+    for (let pi = 0; pi < EMPLOYEES.length; pi++) {
+      const cell = schedule[pi][di];
+      const sh = store.SH[cell.id];
+      if (sh && sh.id !== 'OFF') {
+        if (sh.end === closeH) cl++;
+        if (sh.start === 9) op++;
+      }
+    }
+    
     if (cl !== 2) {
       cierre_ok = false;
       violations.push(`${DF[di]}: cierre=${cl}`);
     }
-    const op = EMPLOYEES.reduce((a, _, pi) => a + (OPENS9.has(schedule[pi][di].id) ? 1 : 0), 0);
     if (op !== 1) {
       apertura_ok = false;
       violations.push(`${DF[di]}: apertura=${op}`);
