@@ -5,6 +5,7 @@ import { getDatabase, ref, onValue, set } from "firebase/database";
 const firebaseConfig = {
   apiKey: "AIzaSyBmkZQqvBouJV3bXQDakaBHPAn32WzL1sY",
   authDomain: "sistemahorario-5e4bc.firebaseapp.com",
+  databaseURL: "https://sistemahorario-5e4bc-default-rtdb.europe-west1.firebasedatabase.app/",
   projectId: "sistemahorario-5e4bc",
   storageBucket: "sistemahorario-5e4bc.firebasestorage.app",
   messagingSenderId: "620934500570",
