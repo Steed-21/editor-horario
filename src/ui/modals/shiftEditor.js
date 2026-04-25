@@ -1,4 +1,4 @@
-import { store } from '../../state/store.js';
+import { store, saveState } from '../../state/store.js';
 import { shiftGrossHours, shiftNetHours } from '../../domain/shift.js';
 import { log } from '../components/log.js';
 import { openModal } from './modal.js';
@@ -61,6 +61,7 @@ export function deleteShift(id) {
   delete store.SH[id];
   log(`Turno ${id} eliminado`, 'warn');
   openShiftBaseEditor();
+  saveState();
   render();
 }
 
@@ -138,6 +139,7 @@ export function saveShiftEdit(id) {
   const nh = Math.max(0, gh - (db !== null ? 1 : 0));
   log(`Turno ${id}: ${s}–${e} · ${nh}h netas (${gh}h brutas)`, 'warn');
   
+  saveState();
   render();
   openShiftBaseEditor();
 }

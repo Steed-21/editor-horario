@@ -1,4 +1,4 @@
-import { store } from '../../state/store.js';
+import { store, saveState } from '../../state/store.js';
 import { DF } from '../../config/constants.js';
 import { log } from '../components/log.js';
 import { regenSchedule } from '../../domain/schedule.js';
@@ -56,6 +56,7 @@ export function confirmAddEmployee() {
   store.EMPLOYEES.push({ name: n, freeDay: fd });
   regenSchedule();
   log(`Añadido: ${n} (libre ${DF[fd]})`, 'ok');
+  saveState();
   render();
   openEmployeesEditor();
 }
@@ -98,6 +99,7 @@ export function saveEmployeeEdit(idx) {
     log(`Nombre: ${old.name} → ${n}`, 'ok');
   }
   
+  saveState();
   render();
   openEmployeesEditor();
 }
@@ -111,6 +113,7 @@ export function deleteEmployee(idx) {
   store.EMPLOYEES.splice(idx, 1);
   regenSchedule();
   log(`Eliminado: ${n}`, 'warn');
+  saveState();
   render();
   openEmployeesEditor();
 }

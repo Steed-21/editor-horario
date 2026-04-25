@@ -54,7 +54,8 @@ export function setupEvents() {
         bLogin.style.color = 'var(--text-secondary)';
       }
     }
-    render();
+    saveState();
+  render();
   });
 
   document.getElementById('bLogin')?.addEventListener('click', () => {
@@ -108,7 +109,8 @@ export function setupEvents() {
       regenSchedule();
     }
     log(`Semana: ${wk}`, 'info');
-    render();
+    saveState();
+  render();
   }
 
   document.getElementById('datePicker')?.addEventListener('change', (e) => {
@@ -129,7 +131,8 @@ export function setupEvents() {
     store.customCounter = 0;
     regenSchedule();
     log('Estado completo restablecido', 'info');
-    render();
+    saveState();
+  render();
   });
 
   document.getElementById('bLock')?.addEventListener('click', () => {
@@ -146,7 +149,8 @@ export function setupEvents() {
       document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
       t.classList.add('active');
       store.view = t.dataset.view;
-      render();
+      saveState();
+  render();
     });
   });
 }

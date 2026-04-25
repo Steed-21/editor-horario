@@ -46,6 +46,4 @@ export function render() {
 
   const actions = document.querySelector('.actions');
   if (actions) actions.style.display = store.isAdmin ? 'flex' : 'none';
-  
-  saveState();
 }

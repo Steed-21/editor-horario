@@ -5,6 +5,7 @@ import { cellHours, makeCell } from '../../domain/cell.js';
 import { log } from '../components/log.js';
 import { openModal, closeModal } from './modal.js';
 import { render } from '../layout.js';
+import { saveState } from '../../state/store.js';
 
 export function openCellEditor(pi, di) {
   store.currentEdit = { pi, di };
@@ -89,6 +90,7 @@ export function confirmCellEdit() {
   const cell = store.schedule[pi][di];
   const bt = cell.bs != null ? ` ⏸${cell.bs}–${cell.bs + 1}` : ' sin⏸';
   log(`${store.EMPLOYEES[pi].name} · ${DF[di].slice(0, 3)}: ${cell.id}${bt} (${cellHours(cell)}h)`, 'ok');
+  saveState();
   closeModal();
   render();
 }
