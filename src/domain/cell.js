@@ -1,4 +1,5 @@
 import { store } from '../state/store.js';
+import { formatHour } from './dateUtils.js';
 
 export function makeCell(id, bsOverride, bdOverride) {
   const sh = store.SH[id];
@@ -15,7 +16,7 @@ export function cellLabel(cell) {
   const sh = store.SH[cell.id];
   if (!sh || sh.id === 'OFF') return 'Libre';
   if (sh.start === sh.end) return sh.abbr || sh.name;
-  return `${sh.start}–${sh.end === 24 ? '24' : sh.end}`;
+  return `${formatHour(sh.start)}–${formatHour(sh.end)}`;
 }
 
 export function borderClass(cell) {

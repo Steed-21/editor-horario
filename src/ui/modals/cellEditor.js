@@ -5,6 +5,7 @@ import { cellHours, makeCell } from '../../domain/cell.js';
 import { log } from '../components/log.js';
 import { openModal, closeModal } from './modal.js';
 import { render } from '../layout.js';
+import { formatHour } from '../../domain/dateUtils.js';
 import { saveState } from '../../state/store.js';
 
 export function openCellEditor(pi, di) {
@@ -19,7 +20,7 @@ export function renderCellModal(cell) {
   const opts = ids.map(id => {
     const sh = store.SH[id];
     const sel = cell.id === id ? ' selected' : '';
-    const lb = sh.start === sh.end ? sh.abbr || sh.name : `${sh.start}–${sh.end === 24 ? '24' : sh.end}`;
+    const lb = sh.start === sh.end ? sh.abbr || sh.name : `${formatHour(sh.start)}–${formatHour(sh.end)}`;
     const gh = shiftGrossHours(sh);
     const nh = shiftNetHours(sh);
     const hText = sh.start === sh.end ? 'Turno sin horas' : (sh.defaultBs != null ? `${nh}h netas (${gh}h bruto)` : `${nh}h`);
@@ -44,12 +45,12 @@ export function renderCellModal(cell) {
         <label for="cellBrk" style="text-transform:none;letter-spacing:0">${canBrk ? 'Incluir descanso' : 'Turno corto'}</label>
       </div>
       ${brkA ? `<label>Inicio/Dur.</label><div class="editor-row" style="gap:4px">
-        <input type="number" id="cellBs" min="${bsMin}" max="${bsMax}" value="${cell.bs}" onchange="window.updateCellBreak()" style="width:60px"/>
+        <input type="number" step="0.5" id="cellBs" min="${bsMin}" max="${bsMax}" value="${cell.bs}" onchange="window.updateCellBreak()" style="width:60px"/>
         <select id="cellBd" onchange="window.updateCellBreak()">
           <option value="1" ${(cell.bd||1) !== 0.5 ? 'selected' : ''}>1h</option>
           <option value="0.5" ${(cell.bd||1) === 0.5 ? 'selected' : ''}>30m</option>
         </select>
-        <span style="font-size:10px;color:var(--text-tertiary)">→ ${(cell.bd||1)===0.5 ? cell.bs+':30' : (cell.bs+1)+':00'}</span>
+        <span style="font-size:10px;color:var(--text-tertiary)">→ ${formatHour(cell.bs + (cell.bd||1))}</span>
       </div>` : ''}
     </div>
     <div class="info-box"><strong>Horas netas:</strong> ${netH}h (${sh.end - sh.start}h bruto${brkA ? ' − ' + ((cell.bd||1)===0.5?'30m':'1h') + ' descanso' : ''})</div>
@@ -90,7 +91,7 @@ export function toggleCellBreak() {
 
 export function updateCellBreak() {
   const { pi, di } = store.currentEdit;
-  const bs = parseInt(document.getElementById('cellBs').value);
+  const bs = parseFloat(document.getElementById('cellBs').value);
   const bd = parseFloat(document.getElementById('cellBd').value);
   const cell = store.schedule[pi][di];
   const sh = store.SH[cell.id];
@@ -105,7 +106,7 @@ export function updateCellBreak() {
 export function confirmCellEdit() {
   const { pi, di } = store.currentEdit;
   const cell = store.schedule[pi][di];
-  const bt = cell.bs != null ? ((cell.bd||1)===0.5 ? ` ⏸${cell.bs}:00–${cell.bs}:30` : ` ⏸${cell.bs}–${cell.bs + 1}`) : ' sin⏸';
+  const bt = cell.bs != null ? ` ⏸${formatHour(cell.bs)}–${formatHour(cell.bs + (cell.bd||1))}` : ' sin⏸';
   log(`${store.EMPLOYEES[pi].name} · ${DF[di].slice(0, 3)}: ${cell.id}${bt} (${cellHours(cell)}h)`, 'ok');
   saveState();
   closeModal();

@@ -19,3 +19,10 @@ export function getDatesForWeek(baseDateStr, wo) {
   }
   return dates;
 }
+
+export function formatHour(h) {
+  if (h == null) return '';
+  const whole = Math.floor(h);
+  const half = (h - whole) === 0.5 ? ':30' : (whole === 24 ? '' : ':00');
+  return `${whole}${half}`;
+}

@@ -22,18 +22,21 @@ export function renderCover() {
         const cell = schedule[pi][di];
         const sh = SH[cell.id];
         if (!sh || sh.id === 'OFF') continue;
-        if (hr >= sh.start && hr < sh.end) {
-          if (cell.bs != null && hr >= cell.bs && hr < cell.bs + 1) {
-            const bd = cell.bd || 1;
-            if (bd === 0.5) {
-              onBreak += 0.5;
-              active += 0.5;
-            } else {
-              onBreak++;
-            }
-          } else {
-            active++;
+        
+        const shiftIntersectStart = Math.max(hr, sh.start);
+        const shiftIntersectEnd = Math.min(hr + 1, sh.end);
+        let shiftOverlap = Math.max(0, shiftIntersectEnd - shiftIntersectStart);
+        
+        if (shiftOverlap > 0) {
+          let breakOverlap = 0;
+          if (cell.bs != null) {
+            const brkEnd = cell.bs + (cell.bd || 1);
+            const brkIntersectStart = Math.max(hr, cell.bs);
+            const brkIntersectEnd = Math.min(hr + 1, brkEnd);
+            breakOverlap = Math.max(0, brkIntersectEnd - brkIntersectStart);
           }
+          active += (shiftOverlap - breakOverlap);
+          onBreak += breakOverlap;
         }
       }
       
