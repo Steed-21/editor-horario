@@ -1,19 +1,19 @@
 import { store } from '../state/store.js';
 
-export function makeCell(id, bsOverride) {
+export function makeCell(id, bsOverride, bdOverride) {
   const sh = store.SH[id];
-  return { id, bs: bsOverride !== undefined ? bsOverride : sh.defaultBs };
+  return { id, bs: bsOverride !== undefined ? bsOverride : sh.defaultBs, bd: bdOverride !== undefined ? bdOverride : (sh.defaultBd || 1) };
 }
 
 export function cellHours(cell) {
   const sh = store.SH[cell.id];
-  if (sh.id === 'OFF') return 0;
-  return Math.max(0, (sh.end - sh.start) - (cell.bs != null ? 1 : 0));
+  if (!sh || sh.id === 'OFF') return 0;
+  return Math.max(0, (sh.end - sh.start) - (cell.bs != null ? (cell.bd || 1) : 0));
 }
 
 export function cellLabel(cell) {
   const sh = store.SH[cell.id];
-  if (sh.id === 'OFF') return 'Libre';
+  if (!sh || sh.id === 'OFF') return 'Libre';
   if (sh.start === sh.end) return sh.abbr || sh.name;
   return `${sh.start}–${sh.end === 24 ? '24' : sh.end}`;
 }

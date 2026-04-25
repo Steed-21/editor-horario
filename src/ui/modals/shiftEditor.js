@@ -14,8 +14,8 @@ export function openShiftBaseEditor() {
     const nh = shiftNetHours(sh);
     const brkTxt = sh.start === sh.end 
       ? `<span class="net">Turno sin horas</span>`
-      : (sh.defaultBs !== null 
-        ? `<span class="net">${nh}h netas</span> · ${gh}h brutas · ⏸def ${sh.defaultBs}–${sh.defaultBs+1}` 
+      : (sh.defaultBs != null 
+        ? `<span class="net">${nh}h netas</span> · ${gh}h brutas · ⏸def ${(sh.defaultBd||1)===0.5 ? `${sh.defaultBs}:00–${sh.defaultBs}:30` : `${sh.defaultBs}–${sh.defaultBs+1}`}` 
         : `<span class="net">${nh}h</span> · sin descanso`);
     const db = !sh.builtin ? `<button class="del" onclick="window.deleteShift('${id}')">×</button>` : '<span style="width:24px"></span>';
     
@@ -42,7 +42,7 @@ export function createCustomShift() {
     store.customCounter++;
     id = `X${store.customCounter}`;
   }
-  store.SH[id] = { id, abbr: id, cls: 'tCUSTOM', start: 0, end: 0, defaultBs: null, name: 'Baja/Ausencia', builtin: false };
+  store.SH[id] = { id, abbr: id, cls: 'tCUSTOM', start: 0, end: 0, defaultBs: null, defaultBd: 1, name: 'Baja/Ausencia', builtin: false };
   log(`Custom: ${id}`, 'ok');
   openSingleShiftEditor(id);
 }
@@ -79,9 +79,16 @@ export function openSingleShiftEditor(id) {
       ${nf}
       <label>Inicio</label><div class="editor-row"><input type="number" id="edStart" min="0" max="23" value="${sh.start}" oninput="window.previewShiftHours()"/><span style="font-size:10px;color:var(--text-tertiary)">:00</span></div>
       <label>Fin</label><div class="editor-row"><input type="number" id="edEnd" min="1" max="24" value="${sh.end}" oninput="window.previewShiftHours()"/><span style="font-size:10px;color:var(--text-tertiary)">:00</span></div>
-      <label>⏸ por defecto</label><div class="editor-row"><input type="number" id="edDefBs" min="0" max="23" value="${sh.defaultBs !== null ? sh.defaultBs : ''}" placeholder="sin" oninput="window.previewShiftHours()"/><span style="font-size:10px;color:var(--text-tertiary)">vacío = sin</span></div>
+      <label>⏸ por defecto</label>
+      <div class="editor-row" style="gap:4px">
+        <input type="number" id="edDefBs" min="0" max="23" value="${sh.defaultBs != null ? sh.defaultBs : ''}" placeholder="sin" oninput="window.previewShiftHours()" style="width:60px"/>
+        <select id="edDefBd" onchange="window.previewShiftHours()">
+          <option value="1" ${sh.defaultBd !== 0.5 ? 'selected' : ''}>1 hora</option>
+          <option value="0.5" ${sh.defaultBd === 0.5 ? 'selected' : ''}>30 min</option>
+        </select>
+      </div>
     </div>
-    <div class="info-box" id="hoursPreview"><strong>${nh}h netas</strong> · ${gh}h brutas${sh.defaultBs !== null ? ' · descanso ' + sh.defaultBs + '–' + (sh.defaultBs + 1) : ' · sin descanso'}</div>
+    <div class="info-box" id="hoursPreview"><strong>${nh}h netas</strong> · ${gh}h brutas${sh.defaultBs != null ? ' · descanso ' + ((sh.defaultBd||1)===0.5 ? sh.defaultBs+':00–'+sh.defaultBs+':30' : sh.defaultBs+'–'+(sh.defaultBs+1)) : ' · sin descanso'}</div>
     <div style="display:flex;gap:6px;margin-top:8px">
       <button class="action-btn" onclick="window.openShiftBaseEditor()">← Volver</button>
       <button class="action-btn primary" onclick="window.saveShiftEdit('${id}')" style="flex:1">Guardar</button>
@@ -94,19 +101,20 @@ export function previewShiftHours() {
   const e = parseInt(document.getElementById('edEnd').value);
   const dbr = document.getElementById('edDefBs').value;
   const db = dbr === '' ? null : parseInt(dbr);
+  const bd = parseFloat(document.getElementById('edDefBd').value);
   
   if (isNaN(s) || isNaN(e) || s > e) {
     document.getElementById('hoursPreview').innerHTML = '<span class="err">Rango inválido</span>';
     return;
   }
   const gh = e - s;
-  const hasBrk = db !== null && !isNaN(db) && db >= s && db < e;
-  const nh = Math.max(0, gh - (hasBrk ? 1 : 0));
+  const hasBrk = db != null && !isNaN(db) && db >= s && db < e;
+  const nh = Math.max(0, gh - (hasBrk ? bd : 0));
   
   if (gh === 0) {
     document.getElementById('hoursPreview').innerHTML = `<strong>Turno sin horas</strong> (Libre/Baja)`;
   } else {
-    document.getElementById('hoursPreview').innerHTML = `<strong>${nh}h netas</strong> · ${gh}h brutas${hasBrk ? ' · descanso ' + db + '–' + (db + 1) : ' · sin descanso'}`;
+    document.getElementById('hoursPreview').innerHTML = `<strong>${nh}h netas</strong> · ${gh}h brutas${hasBrk ? ' · descanso ' + (bd===0.5 ? db+':00–'+db+':30' : db+'–'+(db+1)) : ' · sin descanso'}`;
   }
 }
 
@@ -121,14 +129,17 @@ export function saveShiftEdit(id) {
     log(`Error ${id}: rango inválido`, 'err');
     return;
   }
-  if (db !== null && (db < s || db >= e)) {
+  if (db != null && (db < s || db >= e)) {
     log(`Error ${id}: descanso fuera del turno`, 'err');
     return;
   }
   
+  const bd = parseFloat(document.getElementById('edDefBd').value);
+  
   store.SH[id].start = s;
   store.SH[id].end = e;
   store.SH[id].defaultBs = db;
+  store.SH[id].defaultBd = bd;
   
   const abbr = document.getElementById('edAbbr').value.trim();
   const nn = document.getElementById('edName').value.trim();
@@ -136,7 +147,7 @@ export function saveShiftEdit(id) {
   if (nn) store.SH[id].name = nn;
   
   const gh = e - s;
-  const nh = Math.max(0, gh - (db !== null ? 1 : 0));
+  const nh = Math.max(0, gh - (db != null ? bd : 0));
   log(`Turno ${id}: ${s}–${e} · ${nh}h netas (${gh}h brutas)`, 'warn');
   
   saveState();

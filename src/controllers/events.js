@@ -54,8 +54,7 @@ export function setupEvents() {
         bLogin.style.color = 'var(--text-secondary)';
       }
     }
-    saveState();
-  render();
+    render();
   });
 
   document.getElementById('bLogin')?.addEventListener('click', () => {
@@ -149,8 +148,7 @@ export function setupEvents() {
       document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
       t.classList.add('active');
       store.view = t.dataset.view;
-      saveState();
-  render();
+      render();
     });
   });
 }

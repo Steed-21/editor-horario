@@ -41,11 +41,18 @@ export function renderCellModal(cell) {
       <label>Descanso</label>
       <div class="break-toggle">
         <input type="checkbox" id="cellBrk" ${brkA ? 'checked' : ''} ${!canBrk ? 'disabled' : ''} onchange="window.toggleCellBreak()"/>
-        <label for="cellBrk" style="text-transform:none;letter-spacing:0">${canBrk ? 'Incluir 1h de descanso' : 'Turno corto'}</label>
+        <label for="cellBrk" style="text-transform:none;letter-spacing:0">${canBrk ? 'Incluir descanso' : 'Turno corto'}</label>
       </div>
-      ${brkA ? `<label>Inicio</label><div class="editor-row"><input type="number" id="cellBs" min="${bsMin}" max="${bsMax}" value="${cell.bs}" onchange="window.updateCellBreak()"/><span style="font-size:10px;color:var(--text-tertiary)">:00 → ${cell.bs + 1}:00</span></div>` : ''}
+      ${brkA ? `<label>Inicio/Dur.</label><div class="editor-row" style="gap:4px">
+        <input type="number" id="cellBs" min="${bsMin}" max="${bsMax}" value="${cell.bs}" onchange="window.updateCellBreak()" style="width:60px"/>
+        <select id="cellBd" onchange="window.updateCellBreak()">
+          <option value="1" ${(cell.bd||1) !== 0.5 ? 'selected' : ''}>1h</option>
+          <option value="0.5" ${(cell.bd||1) === 0.5 ? 'selected' : ''}>30m</option>
+        </select>
+        <span style="font-size:10px;color:var(--text-tertiary)">→ ${(cell.bd||1)===0.5 ? cell.bs+':30' : (cell.bs+1)+':00'}</span>
+      </div>` : ''}
     </div>
-    <div class="info-box"><strong>Horas netas:</strong> ${netH}h (${sh.end - sh.start}h bruto${brkA ? ' − 1h descanso' : ''})</div>
+    <div class="info-box"><strong>Horas netas:</strong> ${netH}h (${sh.end - sh.start}h bruto${brkA ? ' − ' + ((cell.bd||1)===0.5?'30m':'1h') + ' descanso' : ''})</div>
   `;
 
   document.getElementById('modalBody').innerHTML = `
@@ -68,7 +75,15 @@ export function toggleCellBreak() {
   const ck = document.getElementById('cellBrk').checked;
   const cell = store.schedule[pi][di];
   const sh = store.SH[cell.id];
-  cell.bs = ck ? (sh.defaultBs != null ? sh.defaultBs : sh.start + Math.floor((sh.end - sh.start) / 2)) : null;
+  
+  if (ck) {
+    cell.bs = sh.defaultBs != null ? sh.defaultBs : sh.start + Math.floor((sh.end - sh.start) / 2);
+    cell.bd = sh.defaultBd != null ? sh.defaultBd : 1;
+  } else {
+    cell.bs = null;
+    cell.bd = 1;
+  }
+  
   store.edited[pi][di] = true;
   renderCellModal(cell);
 }
@@ -76,10 +91,12 @@ export function toggleCellBreak() {
 export function updateCellBreak() {
   const { pi, di } = store.currentEdit;
   const bs = parseInt(document.getElementById('cellBs').value);
+  const bd = parseFloat(document.getElementById('cellBd').value);
   const cell = store.schedule[pi][di];
   const sh = store.SH[cell.id];
   if (!isNaN(bs) && bs >= sh.start && bs <= sh.end - 1) {
     cell.bs = bs;
+    cell.bd = bd;
     store.edited[pi][di] = true;
     renderCellModal(cell);
   }
@@ -88,7 +105,7 @@ export function updateCellBreak() {
 export function confirmCellEdit() {
   const { pi, di } = store.currentEdit;
   const cell = store.schedule[pi][di];
-  const bt = cell.bs != null ? ` ⏸${cell.bs}–${cell.bs + 1}` : ' sin⏸';
+  const bt = cell.bs != null ? ((cell.bd||1)===0.5 ? ` ⏸${cell.bs}:00–${cell.bs}:30` : ` ⏸${cell.bs}–${cell.bs + 1}`) : ' sin⏸';
   log(`${store.EMPLOYEES[pi].name} · ${DF[di].slice(0, 3)}: ${cell.id}${bt} (${cellHours(cell)}h)`, 'ok');
   saveState();
   closeModal();

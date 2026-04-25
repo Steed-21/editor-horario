@@ -21,9 +21,19 @@ export function renderCover() {
       for (let pi = 0; pi < EMPLOYEES.length; pi++) {
         const cell = schedule[pi][di];
         const sh = SH[cell.id];
+        if (!sh || sh.id === 'OFF') continue;
         if (hr >= sh.start && hr < sh.end) {
-          if (cell.bs !== null && hr >= cell.bs && hr < cell.bs + 1) onBreak++;
-          else active++;
+          if (cell.bs != null && hr >= cell.bs && hr < cell.bs + 1) {
+            const bd = cell.bd || 1;
+            if (bd === 0.5) {
+              onBreak += 0.5;
+              active += 0.5;
+            } else {
+              onBreak++;
+            }
+          } else {
+            active++;
+          }
         }
       }
       

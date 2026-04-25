@@ -4,5 +4,6 @@ export function shiftGrossHours(sh) {
 }
 
 export function shiftNetHours(sh) {
-  return Math.max(0, shiftGrossHours(sh) - (sh.defaultBs !== null ? 1 : 0));
+  if (sh.id === 'OFF' || sh.start === sh.end) return 0;
+  return Math.max(0, shiftGrossHours(sh) - (sh.defaultBs != null ? (sh.defaultBd || 1) : 0));
 }
