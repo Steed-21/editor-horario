@@ -10,7 +10,7 @@ import { DEFAULT_SHIFTS } from '../config/shifts.js';
 import { DEFAULT_EMPLOYEES } from '../config/employees.js';
 import { getMonday } from '../domain/dateUtils.js';
 import { getCurrentWeekStr, saveState } from '../state/store.js';
-import { auth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from '../services/firebase.js';
+import { auth, signInWithEmailAndPassword, signOut, onAuthStateChanged, googleProvider, signInWithPopup } from '../services/firebase.js';
 
 import { openCellEditor, selectShiftForCell, toggleCellBreak, updateCellBreak, confirmCellEdit } from '../ui/modals/cellEditor.js';
 import { createCustomShift, deleteShift, openSingleShiftEditor, previewShiftHours, saveShiftEdit } from '../ui/modals/shiftEditor.js';
@@ -61,15 +61,35 @@ export function setupEvents() {
     if (store.isAdmin) {
       signOut(auth);
     } else {
-      const email = prompt('Correo de administrador:');
-      if (!email) return;
-      const pwd = prompt('Contraseña:');
-      if (!pwd) return;
-      
-      signInWithEmailAndPassword(auth, email, pwd).catch(err => {
-        alert('Error al iniciar sesión: ' + err.message);
-      });
+      document.getElementById('loginBg').style.display = 'flex';
+      document.getElementById('loginEmail').value = '';
+      document.getElementById('loginPwd').value = '';
     }
+  });
+
+  document.getElementById('bLoginSubmit')?.addEventListener('click', () => {
+    const email = document.getElementById('loginEmail').value;
+    const pwd = document.getElementById('loginPwd').value;
+    if (!email || !pwd) return;
+    
+    document.getElementById('bLoginSubmit').textContent = 'Iniciando...';
+    signInWithEmailAndPassword(auth, email, pwd)
+      .then(() => {
+        document.getElementById('loginBg').style.display = 'none';
+        document.getElementById('bLoginSubmit').textContent = 'Entrar con Email';
+      })
+      .catch(err => {
+        alert('Error al iniciar sesión: ' + err.message);
+        document.getElementById('bLoginSubmit').textContent = 'Entrar con Email';
+      });
+  });
+
+  document.getElementById('bLoginGoogle')?.addEventListener('click', () => {
+    signInWithPopup(auth, googleProvider)
+      .then(() => {
+        document.getElementById('loginBg').style.display = 'none';
+      })
+      .catch(err => alert('Error con Google: ' + err.message));
   });
 
   function navigateWeek(delta, newDateStr = null) {

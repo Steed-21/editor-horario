@@ -1,10 +1,11 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { getDatabase, ref, onValue, set } from "firebase/database";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBmkZQqvBouJV3bXQDakaBHPAn32WzL1sY",
   authDomain: "sistemahorario-5e4bc.firebaseapp.com",
+  databaseURL: "https://sistemahorario-5e4bc-default-rtdb.firebaseio.com",
   projectId: "sistemahorario-5e4bc",
   storageBucket: "sistemahorario-5e4bc.firebasestorage.app",
   messagingSenderId: "620934500570",
@@ -14,5 +15,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getDatabase(app);
+export const googleProvider = new GoogleAuthProvider();
 
-export { signInWithEmailAndPassword, signOut, onAuthStateChanged, ref, onValue, set };
+export { signInWithEmailAndPassword, signOut, onAuthStateChanged, ref, onValue, set, signInWithPopup };
