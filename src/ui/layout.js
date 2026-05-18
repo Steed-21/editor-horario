@@ -1,4 +1,4 @@
-import { store, saveState } from '../state/store.js';
+import { store } from '../state/store.js';
 import { renderPerson } from './views/person.js';
 import { renderDay } from './views/day.js';
 import { renderHours } from './views/hours.js';

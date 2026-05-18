@@ -1,5 +1,3 @@
-import { store } from '../../state/store.js';
-
 export function renderLegend() {
   return `<div class="legend-line">
     <span class="lbl">COLOR POR HORAS</span>

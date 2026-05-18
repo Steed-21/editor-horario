@@ -121,7 +121,6 @@ export function previewShiftHours() {
 }
 
 export function saveShiftEdit(id) {
-  const sh = store.SH[id];
   const s = parseFloat(document.getElementById('edStart').value);
   const e = parseFloat(document.getElementById('edEnd').value);
   const dbr = document.getElementById('edDefBs').value;

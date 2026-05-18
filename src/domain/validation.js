@@ -1,6 +1,6 @@
 import { store } from '../state/store.js';
 import { cellHours } from './cell.js';
-import { CLOSERS, OPENS9, DF, CLOSE24 } from '../config/constants.js';
+import { DF, CLOSE24 } from '../config/constants.js';
 
 export function totalH(pi) {
   return store.schedule[pi].reduce((s, cell) => s + cellHours(cell), 0);

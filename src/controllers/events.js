@@ -107,7 +107,7 @@ export function setupEvents() {
         btn.textContent = 'Entrar';
         btn.disabled = false;
       })
-      .catch(err => {
+      .catch(() => {
         if (errBox) {
           errBox.textContent = 'Credenciales inválidas o usuario no autorizado.';
           errBox.style.display = 'block';

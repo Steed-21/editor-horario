@@ -1,6 +1,5 @@
 import { DEFAULT_EMPLOYEES } from '../config/employees.js';
 import { DEFAULT_SHIFTS } from '../config/shifts.js';
-import initData from '../config/data.json';
 import { getMonday } from '../domain/dateUtils.js';
 import { db, ref, onValue, update } from '../services/firebase.js';
 
@@ -96,7 +95,7 @@ export function syncState(callback) {
         store.schedule = store.weeks[wk].schedule;
         store.edited = store.weeks[wk].edited;
       }
-    } catch(e) {}
+    } catch (_e) { /* localStorage corrupto: ignorar y seguir con defaults */ }
   }
 
   // Desbloquea la UI de inmediato
