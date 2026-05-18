@@ -16,15 +16,36 @@ function makeOffRow() {
 // Aplica una operación sobre store.schedule, store.edited y sobre cada
 // schedule/edited de store.weeks. Mantiene consistencia entre la semana
 // actual en memoria y todas las semanas persistidas.
+//
+// CRÍTICO: store.weeks[wk].schedule y store.schedule pueden apuntar al MISMO
+// array (asignación por referencia en saveState/navigateWeek). Si iteramos
+// ambos sin detectar la duplicidad, se aplica la mutación dos veces sobre el
+// mismo array y la semana actual termina con una fila extra. Usamos Set para
+// dedup por referencia.
 function mutateAllSchedules(opSchedule, opEdited) {
-  if (Array.isArray(store.schedule)) opSchedule(store.schedule);
-  if (Array.isArray(store.edited)) opEdited(store.edited);
+  const seenSched = new Set();
+  const seenEdited = new Set();
+
+  if (Array.isArray(store.schedule)) {
+    opSchedule(store.schedule);
+    seenSched.add(store.schedule);
+  }
+  if (Array.isArray(store.edited)) {
+    opEdited(store.edited);
+    seenEdited.add(store.edited);
+  }
   if (store.weeks && typeof store.weeks === 'object') {
     for (const wk of Object.keys(store.weeks)) {
       const w = store.weeks[wk];
       if (!w) continue;
-      if (Array.isArray(w.schedule)) opSchedule(w.schedule);
-      if (Array.isArray(w.edited)) opEdited(w.edited);
+      if (Array.isArray(w.schedule) && !seenSched.has(w.schedule)) {
+        opSchedule(w.schedule);
+        seenSched.add(w.schedule);
+      }
+      if (Array.isArray(w.edited) && !seenEdited.has(w.edited)) {
+        opEdited(w.edited);
+        seenEdited.add(w.edited);
+      }
     }
   }
 }

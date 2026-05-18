@@ -33,7 +33,7 @@ export function getCurrentWeekStr() {
 let lastSaveTs = 0;
 // Cooldown anti-eco: durante este tiempo tras una escritura propia, ignoramos
 // snapshots remotos para no sobrescribir el store local con datos en tránsito.
-const SAVE_ECHO_COOLDOWN_MS = 4000;
+const SAVE_ECHO_COOLDOWN_MS = 1500;
 
 export function saveState() {
   if (!store.isAdmin) return;
@@ -98,7 +98,10 @@ export function syncState(callback) {
     } catch (_e) { /* localStorage corrupto: ignorar y seguir con defaults */ }
   }
 
-  // Desbloquea la UI de inmediato
+  // Desbloquea la UI de inmediato.
+  // IMPORTANTE: resetear lastSaveTs para que los listeners de Firebase no sean
+  // bloqueados por el eco-cooldown al arrancar por primera vez.
+  lastSaveTs = 0;
   if (callback) {
     callback();
     callback = null;
@@ -137,7 +140,8 @@ export function syncState(callback) {
     onValue(ref(db, `${root}/baseDate`), (snap) => {
       if (inEcho()) return;
       const v = snap.val();
-      if (typeof v === 'number') store.baseDate = v;
+      // baseDate es un string ISO (ej: "2026-05-19"), no un número
+      if (v && typeof v === 'string') store.baseDate = v;
     }, (e) => console.warn('listener baseDate:', e));
 
     onValue(ref(db, `${root}/logEntries`), (snap) => {
@@ -155,8 +159,17 @@ export function syncState(callback) {
       store.weeks = v;
       const wk = getCurrentWeekStr();
       if (store.weeks[wk]) {
-        store.schedule = store.weeks[wk].schedule;
-        store.edited = store.weeks[wk].edited;
+        // Firebase elimina las claves con valor null. Normalizamos bs → null y bd → 1
+        // para evitar que aparezcan como undefined en los cálculos.
+        const rawSchedule = store.weeks[wk].schedule || [];
+        store.schedule = rawSchedule.map(row =>
+          (row || []).map(cell => ({
+            ...cell,
+            bs: cell.bs != null ? cell.bs : null,
+            bd: cell.bd != null ? cell.bd : 1,
+          }))
+        );
+        store.edited = store.weeks[wk].edited || store.schedule.map(row => row.map(() => false));
       }
       rerender();
     }, (e) => console.warn('listener weeks:', e));
