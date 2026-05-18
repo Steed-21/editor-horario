@@ -1,3 +1,15 @@
 node_modules
 dist
 .DS_Store
+
+# Variables de entorno locales
+.env
+.env.local
+.env.*.local
+
+# Logs y artefactos
+*.log
+.vite
+
+# Archivo temporal para importar a Vercel (borrar tras subirlo)
+vercel-import.env

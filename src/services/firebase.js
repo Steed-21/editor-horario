@@ -1,20 +1,30 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
 import { getDatabase, ref, onValue, set } from "firebase/database";
 
+// Configuración Firebase leída desde variables de entorno (.env.local) en build.
+// Si falta alguna, el SDK lanza un error claro al inicializar.
+// Nota: la apiKey web de Firebase no es secreta por diseño; la seguridad real
+// la imponen las reglas de Auth + RTDB (ver Fase 2).
 const firebaseConfig = {
-  apiKey: "AIzaSyBmkZQqvBouJV3bXQDakaBHPAn32WzL1sY",
-  authDomain: "sistemahorario-5e4bc.firebaseapp.com",
-  databaseURL: "https://sistemahorario-5e4bc-default-rtdb.europe-west1.firebasedatabase.app/",
-  projectId: "sistemahorario-5e4bc",
-  storageBucket: "sistemahorario-5e4bc.firebasestorage.app",
-  messagingSenderId: "620934500570",
-  appId: "1:620934500570:web:6018c270872c1f3da4d5e3"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
+
+// Aviso temprano si el .env no está completo (fail-closed).
+for (const [k, v] of Object.entries(firebaseConfig)) {
+  if (!v) {
+    console.error(`[firebase] Falta variable de entorno para ${k}. Revisa .env.local`);
+  }
+}
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getDatabase(app);
-export const googleProvider = new GoogleAuthProvider();
 
-export { signInWithEmailAndPassword, signOut, onAuthStateChanged, ref, onValue, set, signInWithPopup };
+export { signInWithEmailAndPassword, signOut, onAuthStateChanged, ref, onValue, set };

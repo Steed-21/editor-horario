@@ -10,7 +10,7 @@ import { DEFAULT_SHIFTS } from '../config/shifts.js';
 import { DEFAULT_EMPLOYEES } from '../config/employees.js';
 import { getMonday } from '../domain/dateUtils.js';
 import { getCurrentWeekStr, saveState } from '../state/store.js';
-import { auth, signInWithEmailAndPassword, signOut, onAuthStateChanged, googleProvider, signInWithPopup } from '../services/firebase.js';
+import { auth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from '../services/firebase.js';
 
 import { openCellEditor, selectShiftForCell, toggleCellBreak, updateCellBreak, confirmCellEdit } from '../ui/modals/cellEditor.js';
 import { createCustomShift, deleteShift, openSingleShiftEditor, previewShiftHours, saveShiftEdit } from '../ui/modals/shiftEditor.js';
@@ -43,12 +43,38 @@ export function setupEvents() {
   });
 
   onAuthStateChanged(auth, (user) => {
-    store.isAdmin = !!user;
+    // isAdmin se calcula igual que la regla del servidor:
+    // email coincide con VITE_ADMIN_EMAIL y el correo está verificado.
+    // Cualquier otro usuario autenticado queda en modo solo lectura.
+    const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
+    store.isAdmin = !!user
+      && !!adminEmail
+      && user.email === adminEmail
+      && user.emailVerified === true;
+
+    // Auth gate: sin sesión, la app entera queda oculta detrás del login.
+    const container = document.querySelector('.container');
+    const loginBg = document.getElementById('loginBg');
+    if (user) {
+      if (loginBg) loginBg.style.display = 'none';
+      if (container) container.style.display = '';
+    } else {
+      if (container) container.style.display = 'none';
+      if (loginBg) loginBg.style.display = 'flex';
+      // Limpiar campos al volver al login
+      const em = document.getElementById('loginEmail');
+      const pw = document.getElementById('loginPwd');
+      const er = document.getElementById('loginError');
+      if (em) em.value = '';
+      if (pw) pw.value = '';
+      if (er) { er.style.display = 'none'; er.textContent = ''; }
+    }
+
     const bLogin = document.getElementById('bLogin');
     if (bLogin) {
       if (user) {
-        bLogin.textContent = 'Salir';
-        bLogin.style.color = '#1D9E75';
+        bLogin.textContent = store.isAdmin ? 'Salir' : 'Salir (lectura)';
+        bLogin.style.color = store.isAdmin ? '#1D9E75' : 'var(--text-secondary)';
       } else {
         bLogin.textContent = 'Admin';
         bLogin.style.color = 'var(--text-secondary)';
@@ -57,39 +83,38 @@ export function setupEvents() {
     render();
   });
 
+  // Único uso del botón superior: cerrar sesión. Sin sesión no se ve.
   document.getElementById('bLogin')?.addEventListener('click', () => {
-    if (store.isAdmin) {
-      signOut(auth);
-    } else {
-      document.getElementById('loginBg').style.display = 'flex';
-      document.getElementById('loginEmail').value = '';
-      document.getElementById('loginPwd').value = '';
-    }
+    signOut(auth);
   });
 
   document.getElementById('bLoginSubmit')?.addEventListener('click', () => {
     const email = document.getElementById('loginEmail').value;
     const pwd = document.getElementById('loginPwd').value;
-    if (!email || !pwd) return;
-    
-    document.getElementById('bLoginSubmit').textContent = 'Iniciando...';
+    const errBox = document.getElementById('loginError');
+    if (errBox) { errBox.style.display = 'none'; errBox.textContent = ''; }
+    if (!email || !pwd) {
+      if (errBox) { errBox.textContent = 'Correo y contraseña son obligatorios.'; errBox.style.display = 'block'; }
+      return;
+    }
+
+    const btn = document.getElementById('bLoginSubmit');
+    btn.textContent = 'Iniciando...';
+    btn.disabled = true;
     signInWithEmailAndPassword(auth, email, pwd)
       .then(() => {
-        document.getElementById('loginBg').style.display = 'none';
-        document.getElementById('bLoginSubmit').textContent = 'Entrar con Email';
+        // onAuthStateChanged cierra el modal y muestra la app.
+        btn.textContent = 'Entrar';
+        btn.disabled = false;
       })
       .catch(err => {
-        alert('Error al iniciar sesión: ' + err.message);
-        document.getElementById('bLoginSubmit').textContent = 'Entrar con Email';
+        if (errBox) {
+          errBox.textContent = 'Credenciales inválidas o usuario no autorizado.';
+          errBox.style.display = 'block';
+        }
+        btn.textContent = 'Entrar';
+        btn.disabled = false;
       });
-  });
-
-  document.getElementById('bLoginGoogle')?.addEventListener('click', () => {
-    signInWithPopup(auth, googleProvider)
-      .then(() => {
-        document.getElementById('loginBg').style.display = 'none';
-      })
-      .catch(err => alert('Error con Google: ' + err.message));
   });
 
   function navigateWeek(delta, newDateStr = null) {

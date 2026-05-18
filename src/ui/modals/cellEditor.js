@@ -7,6 +7,7 @@ import { openModal, closeModal } from './modal.js';
 import { render } from '../layout.js';
 import { formatHour } from '../../domain/dateUtils.js';
 import { saveState } from '../../state/store.js';
+import { esc } from '../../utils/escape.js';
 
 export function openCellEditor(pi, di) {
   store.currentEdit = { pi, di };
@@ -24,7 +25,7 @@ export function renderCellModal(cell) {
     const gh = shiftGrossHours(sh);
     const nh = shiftNetHours(sh);
     const hText = sh.start === sh.end ? 'Turno sin horas' : (sh.defaultBs != null ? `${nh}h netas (${gh}h bruto)` : `${nh}h`);
-    return `<button class="shift-opt ${sh.cls}${sel}" onclick="window.selectShiftForCell('${id}')"><span class="opt-time">${sh.abbr || id} · ${lb}</span><span class="opt-h">${sh.name}${hText ? ' · ' + hText : ''}</span></button>`;
+    return `<button class="shift-opt ${sh.cls}${sel}" onclick="window.selectShiftForCell('${esc(id)}')"><span class="opt-time">${esc(sh.abbr || id)} · ${lb}</span><span class="opt-h">${esc(sh.name)}${hText ? ' · ' + hText : ''}</span></button>`;
   }).join('');
 
   const sh = store.SH[cell.id];

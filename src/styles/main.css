@@ -94,3 +94,88 @@ td.total-cell{background:transparent;vertical-align:middle;font-size:10px;font-w
 .emp-item button{font-size:9px;padding:3px 8px;cursor:pointer;background:transparent;border:.5px solid var(--border-tertiary);border-radius:3px;color:var(--text-secondary);font-family:inherit;text-transform:uppercase;letter-spacing:.3px}
 .emp-item button.del{color:#A32D2D}.emp-item button.del:hover{border-color:#A32D2D}
 @media (max-width:720px){.dashboard{grid-template-columns:1fr}body{padding:.75rem}}
+
+/* === Responsive móvil (≤600px) === */
+@media (max-width:600px){
+  body{padding:.5rem}
+  .container{max-width:100%}
+  .header{flex-direction:column;align-items:stretch;gap:8px;margin-bottom:.75rem}
+  .nav{flex-wrap:wrap;justify-content:flex-start;gap:6px}
+  .nav-btn{font-size:12px;padding:8px 12px;min-height:36px}
+  .week-tag{font-size:12px;padding:6px 10px;min-width:auto;flex:1;min-height:36px;display:flex;align-items:center;justify-content:center}
+  #datePicker{height:36px!important;padding:4px 8px!important;font-size:12px}
+  .title{font-size:13px}.subtitle{font-size:11px}
+
+  /* Tabs deslizables horizontalmente */
+  .tabs{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+  .tab{font-size:12px;padding:10px 14px;flex-shrink:0;min-height:40px}
+
+  /* Tabla: scroll horizontal con primera columna pegajosa */
+  .grid-wrap{padding:.5rem .4rem}
+  .grid-wrap::after{
+    content:"↔ Desliza para ver más días";
+    display:block;font-size:10px;color:var(--text-tertiary);
+    text-align:center;margin-top:8px;letter-spacing:.5px
+  }
+  table{font-size:11px}
+  th{font-size:10px;padding:8px 4px}
+  td{padding:3px}
+  td.name-cell,td.day-label,table th:first-child{
+    position:sticky;left:0;z-index:2;
+    background:var(--bg-secondary);
+    box-shadow:1px 0 0 var(--border-tertiary)
+  }
+  td.name-cell{font-size:12px;padding:8px 6px;min-width:90px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  td.day-label{font-size:11px;padding:8px 6px;min-width:80px}
+  td.total-cell{font-size:11px}
+  .shift-pill{font-size:11px;padding:6px 4px;line-height:1.35;min-height:38px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .bk-label{font-size:9px}
+
+  /* Acciones admin: botones más grandes */
+  .actions{gap:8px}
+  .action-btn{font-size:12px;padding:10px 14px;min-height:40px;flex:1;min-width:120px}
+
+  /* Modales: ocupan casi todo el ancho */
+  .modal-bg{padding-top:1rem;align-items:flex-start;padding-left:.5rem;padding-right:.5rem}
+  .modal{min-width:auto;width:100%;max-width:100%;padding:.85rem;max-height:90vh}
+  .modal-title{font-size:11px}
+  .shift-opts{grid-template-columns:1fr}
+  .shift-opt{padding:10px 10px;font-size:11px;min-height:44px}
+  .shift-opt .opt-time{font-size:11px}
+  .shift-opt .opt-h{font-size:10px}
+  .modal-close{font-size:11px;padding:10px;min-height:40px}
+  .edit-grid{grid-template-columns:1fr;gap:4px 8px}
+  .edit-grid label{font-size:11px;margin-top:6px}
+  .edit-grid input,.edit-grid select{font-size:14px;padding:8px;min-height:38px}
+  .editor-row input[type="text"]{width:100%}
+  .editor-row input[type="number"]{width:70px;min-height:38px}
+
+  /* Listas internas (empleados, turnos) */
+  .emp-item,.shift-item{grid-template-columns:1fr auto auto;gap:6px;padding:8px}
+  .emp-name,.shift-item .sh-id{font-size:13px}
+  .emp-item button,.shift-item button{font-size:11px;padding:8px 12px;min-height:36px}
+
+  /* Métricas: en línea horizontal compacta */
+  .metrics-side{flex-direction:row;flex-wrap:wrap;gap:6px}
+  .metric{flex:1;min-width:140px;padding:.5rem}
+
+  /* Log */
+  .log-panel{font-size:10.5px;max-height:90px}
+
+  /* Leyenda más compacta */
+  .legend-line{font-size:10px;gap:8px}
+  .legend-line .lbl{min-width:auto}
+}
+
+/* === Móvil estrecho (≤380px, ej. iPhone SE) === */
+@media (max-width:380px){
+  body{padding:.4rem}
+  .title{font-size:12px}
+  .nav-btn{font-size:11px;padding:7px 10px}
+  .week-tag{font-size:11px;flex-basis:100%;order:-1}
+  table{font-size:10px}
+  td.name-cell{min-width:70px;max-width:80px;font-size:11px}
+  td.day-label{min-width:64px;font-size:10px}
+  .shift-pill{font-size:10px;min-height:34px}
+  .metric{min-width:100%}
+}

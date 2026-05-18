@@ -4,6 +4,7 @@ import { log } from '../components/log.js';
 import { openModal } from './modal.js';
 import { render } from '../layout.js';
 import { formatHour } from '../../domain/dateUtils.js';
+import { esc } from '../../utils/escape.js';
 
 export function openShiftBaseEditor() {
   document.getElementById('modalTitle').textContent = 'Editar turnos base';
@@ -21,9 +22,9 @@ export function openShiftBaseEditor() {
     const db = !sh.builtin ? `<button class="del" onclick="window.deleteShift('${id}')">×</button>` : '<span style="width:24px"></span>';
     
     return `<div class="shift-item ${sh.builtin ? '' : 'custom'} ${sh.cls}">
-      <span class="sh-id">${id}</span>
-      <span class="sh-info"><strong>${sh.name}</strong> (${sh.abbr || sh.id}) · ${lb}<br>${brkTxt}</span>
-      <button onclick="window.openSingleShiftEditor('${id}')">Editar</button>
+      <span class="sh-id">${esc(id)}</span>
+      <span class="sh-info"><strong>${esc(sh.name)}</strong> (${esc(sh.abbr || sh.id)}) · ${lb}<br>${brkTxt}</span>
+      <button onclick="window.openSingleShiftEditor('${esc(id)}')">Editar</button>
       ${db}
     </div>`;
   }).join('');
@@ -72,8 +73,8 @@ export function openSingleShiftEditor(id) {
   const nh = shiftNetHours(sh);
   document.getElementById('modalTitle').textContent = `Editar turno ${id}`;
   
-  const nf = `<label>Abrev.</label><div class="editor-row"><input type="text" id="edAbbr" value="${sh.abbr || sh.id}" style="width:140px"/></div>
-              <label>Nombre</label><div class="editor-row"><input type="text" id="edName" value="${sh.name}" style="width:140px"/></div>`;
+  const nf = `<label>Abrev.</label><div class="editor-row"><input type="text" id="edAbbr" value="${esc(sh.abbr || sh.id)}" style="width:140px"/></div>
+              <label>Nombre</label><div class="editor-row"><input type="text" id="edName" value="${esc(sh.name)}" style="width:140px"/></div>`;
   
   document.getElementById('modalBody').innerHTML = `
     <div class="edit-grid">
@@ -92,7 +93,7 @@ export function openSingleShiftEditor(id) {
     <div class="info-box" id="hoursPreview"><strong>${nh}h netas</strong> · ${gh}h brutas${sh.defaultBs != null ? ' · descanso ' + formatHour(sh.defaultBs) + '–' + formatHour(sh.defaultBs + (sh.defaultBd||1)) : ' · sin descanso'}</div>
     <div style="display:flex;gap:6px;margin-top:8px">
       <button class="action-btn" onclick="window.openShiftBaseEditor()">← Volver</button>
-      <button class="action-btn primary" onclick="window.saveShiftEdit('${id}')" style="flex:1">Guardar</button>
+      <button class="action-btn primary" onclick="window.saveShiftEdit('${esc(id)}')" style="flex:1">Guardar</button>
     </div>
   `;
 }

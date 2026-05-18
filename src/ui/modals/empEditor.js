@@ -4,13 +4,14 @@ import { log } from '../components/log.js';
 import { regenSchedule } from '../../domain/schedule.js';
 import { openModal } from './modal.js';
 import { render } from '../layout.js';
+import { esc } from '../../utils/escape.js';
 
 export function openEmployeesEditor() {
   document.getElementById('modalTitle').textContent = 'Gestión de empleados';
   const rows = store.EMPLOYEES.map((e, i) => `
     <div class="emp-item">
       <div>
-        <div class="emp-name">${e.name}</div>
+        <div class="emp-name">${esc(e.name)}</div>
         <div class="emp-day">Libre: ${DF[e.freeDay]}</div>
       </div>
       <button onclick="window.openEmployeeEdit(${i})">Editar</button>
@@ -68,7 +69,7 @@ export function openEmployeeEdit(idx) {
   
   document.getElementById('modalBody').innerHTML = `
     <div class="edit-grid">
-      <label>Nombre</label><div class="editor-row"><input type="text" id="edEmpName" value="${e.name}"/></div>
+      <label>Nombre</label><div class="editor-row"><input type="text" id="edEmpName" value="${esc(e.name)}"/></div>
       <label>Día libre</label><div class="editor-row"><select id="edEmpDay">${ds}</select></div>
     </div>
     <div class="info-box">Cambiar día libre regenera el horario de esta persona.</div>
