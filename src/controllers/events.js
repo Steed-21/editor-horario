@@ -117,6 +117,16 @@ export function setupEvents() {
       });
   });
 
+  function normalizeSchedule(raw) {
+    return (raw || []).map(row =>
+      (row || []).map(cell => ({
+        ...cell,
+        bs: cell.bs != null ? cell.bs : null,
+        bd: cell.bd != null ? cell.bd : 1,
+      }))
+    );
+  }
+
   function navigateWeek(delta, newDateStr = null) {
     store.weeks[getCurrentWeekStr()] = { schedule: store.schedule, edited: store.edited };
     if (newDateStr) {
@@ -127,14 +137,14 @@ export function setupEvents() {
     }
     const wk = getCurrentWeekStr();
     if (store.weeks[wk]) {
-      store.schedule = store.weeks[wk].schedule;
-      store.edited = store.weeks[wk].edited;
+      store.schedule = normalizeSchedule(store.weeks[wk].schedule);
+      store.edited = store.weeks[wk].edited || store.schedule.map(r => r.map(() => false));
     } else {
       regenSchedule();
     }
     log(`Semana: ${wk}`, 'info');
     saveState();
-  render();
+    render();
   }
 
   document.getElementById('datePicker')?.addEventListener('change', (e) => {

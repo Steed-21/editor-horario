@@ -57,19 +57,19 @@ export function saveState() {
   // Marcar timestamp ANTES de la escritura para descartar el eco inmediato.
   lastSaveTs = Date.now();
 
-  // Escritura granular por sub-rutas: update() solo afecta las claves
-  // especificadas, no toca el resto del subárbol. Si dos dispositivos editan
-  // semanas distintas, ya no se pisan entre sí.
+  // Escritura granular: update() solo afecta las claves especificadas.
+  // IMPORTANTE: guardamos TODAS las semanas de store.weeks, no solo la actual.
+  // Si el admin añade/borra empleados, mutateAllSchedules muta todas las semanas
+  // en memoria. Si solo subimos la semana actual, las demás se pierden cuando
+  // el listener de Firebase reemplaza store.weeks con los datos remotos.
   const updates = {
     'horario_v5_state/EMPLOYEES': store.EMPLOYEES,
     'horario_v5_state/SH': store.SH,
     'horario_v5_state/customCounter': store.customCounter,
     'horario_v5_state/baseDate': store.baseDate,
     'horario_v5_state/logEntries': store.logEntries,
+    'horario_v5_state/weeks': store.weeks,
   };
-  if (store.schedule.length > 0) {
-    updates[`horario_v5_state/weeks/${wk}`] = { schedule: store.schedule, edited: store.edited };
-  }
 
   try {
     update(ref(db), updates).catch(e => console.warn('Firebase guardado falló:', e));
@@ -162,14 +162,22 @@ export function syncState(callback) {
         // Firebase elimina las claves con valor null. Normalizamos bs → null y bd → 1
         // para evitar que aparezcan como undefined en los cálculos.
         const rawSchedule = store.weeks[wk].schedule || [];
-        store.schedule = rawSchedule.map(row =>
+        const normalized = rawSchedule.map(row =>
           (row || []).map(cell => ({
             ...cell,
             bs: cell.bs != null ? cell.bs : null,
             bd: cell.bd != null ? cell.bd : 1,
           }))
         );
-        store.edited = store.weeks[wk].edited || store.schedule.map(row => row.map(() => false));
+        // Guardia de race condition: si Firebase trae MENOS filas de empleados
+        // que las que tenemos localmente, es porque nuestro write aún no propagó.
+        // En ese caso ignoramos el snapshot de weeks (EMPLOYEES ya está actualizado).
+        if (normalized.length >= store.EMPLOYEES.length) {
+          store.schedule = normalized;
+          store.edited = store.weeks[wk].edited || normalized.map(row => row.map(() => false));
+        } else {
+          console.warn('[sync] weeks listener: Firebase tiene menos filas que store.EMPLOYEES. Write en vuelo, ignorando snapshot.');
+        }
       }
       rerender();
     }, (e) => console.warn('listener weeks:', e));
