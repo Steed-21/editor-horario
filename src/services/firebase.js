@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
-import { getDatabase, ref, onValue, set } from "firebase/database";
+import { getDatabase, ref, onValue, set, update } from "firebase/database";
 
 // Configuración Firebase leída desde variables de entorno (.env.local) en build.
 // Si falta alguna, el SDK lanza un error claro al inicializar.
@@ -27,4 +27,4 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getDatabase(app);
 
-export { signInWithEmailAndPassword, signOut, onAuthStateChanged, ref, onValue, set };
+export { signInWithEmailAndPassword, signOut, onAuthStateChanged, ref, onValue, set, update };

@@ -2,7 +2,7 @@ import { DEFAULT_EMPLOYEES } from '../config/employees.js';
 import { DEFAULT_SHIFTS } from '../config/shifts.js';
 import initData from '../config/data.json';
 import { getMonday } from '../domain/dateUtils.js';
-import { db, ref, set, onValue } from '../services/firebase.js';
+import { db, ref, onValue, update } from '../services/firebase.js';
 
 export const store = {
   EMPLOYEES: JSON.parse(JSON.stringify(DEFAULT_EMPLOYEES)),
@@ -28,12 +28,22 @@ export function getCurrentWeekStr() {
   return d.toISOString().split('T')[0];
 }
 
+// Marca temporal de la última escritura propia. Sirve para descartar el "eco"
+// que el listener onValue recibirá del mismo cambio que acabamos de subir,
+// evitando que pise ediciones rápidas en vuelo (race condition).
+let lastSaveTs = 0;
+// Cooldown anti-eco: durante este tiempo tras una escritura propia, ignoramos
+// snapshots remotos para no sobrescribir el store local con datos en tránsito.
+const SAVE_ECHO_COOLDOWN_MS = 4000;
+
 export function saveState() {
   if (!store.isAdmin) return;
+  const wk = getCurrentWeekStr();
   if (store.schedule.length > 0) {
-    const currentWeekStr = getCurrentWeekStr();
-    store.weeks[currentWeekStr] = { schedule: store.schedule, edited: store.edited };
+    store.weeks[wk] = { schedule: store.schedule, edited: store.edited };
   }
+
+  // Caché local completa (arranque rápido offline)
   const snapshot = {
     EMPLOYEES: store.EMPLOYEES,
     SH: store.SH,
@@ -43,12 +53,27 @@ export function saveState() {
     weeks: store.weeks,
     logEntries: store.logEntries
   };
-  
-  // Guardado local de seguridad
   localStorage.setItem('horario_v5_state', JSON.stringify(snapshot));
-  
+
+  // Marcar timestamp ANTES de la escritura para descartar el eco inmediato.
+  lastSaveTs = Date.now();
+
+  // Escritura granular por sub-rutas: update() solo afecta las claves
+  // especificadas, no toca el resto del subárbol. Si dos dispositivos editan
+  // semanas distintas, ya no se pisan entre sí.
+  const updates = {
+    'horario_v5_state/EMPLOYEES': store.EMPLOYEES,
+    'horario_v5_state/SH': store.SH,
+    'horario_v5_state/customCounter': store.customCounter,
+    'horario_v5_state/baseDate': store.baseDate,
+    'horario_v5_state/logEntries': store.logEntries,
+  };
+  if (store.schedule.length > 0) {
+    updates[`horario_v5_state/weeks/${wk}`] = { schedule: store.schedule, edited: store.edited };
+  }
+
   try {
-    set(ref(db, 'horario_v5_state'), snapshot).catch(e => console.warn('Firebase guardado falló:', e));
+    update(ref(db), updates).catch(e => console.warn('Firebase guardado falló:', e));
   } catch(e) { console.warn(e); }
 }
 
@@ -82,30 +107,60 @@ export function syncState(callback) {
   if (window._renderUI) window._renderUI();
 
   try {
-    const stateRef = ref(db, 'horario_v5_state');
-    onValue(stateRef, (snapshot) => {
-      const p = snapshot.val();
-      if (p) {
-        store.EMPLOYEES = p.EMPLOYEES || store.EMPLOYEES;
-        store.SH = p.SH || store.SH;
-        store.customCounter = p.customCounter || 0;
-        store.wo = p.wo || 0;
-        store.baseDate = p.baseDate || store.baseDate;
-        store.weeks = p.weeks || {};
-        store.logEntries = p.logEntries || store.logEntries;
-        
-        const wk = getCurrentWeekStr();
-        if (store.weeks[wk]) {
-          store.schedule = store.weeks[wk].schedule;
-          store.edited = store.weeks[wk].edited;
-        } else {
-          store.schedule = [];
-        }
-        if (window._renderUI) window._renderUI();
+    const root = 'horario_v5_state';
+    const inEcho = () => (Date.now() - lastSaveTs) < SAVE_ECHO_COOLDOWN_MS;
+    const rerender = () => { if (window._renderUI) window._renderUI(); };
+
+    // Listener por sub-ruta: cada uno aplica sólo su clave. Si una sub-ruta
+    // cambia en remoto, no se toca el resto del store. Esto evita que un
+    // cambio en EMPLOYEES pise una edición en curso de una celda, y viceversa.
+
+    onValue(ref(db, `${root}/EMPLOYEES`), (snap) => {
+      if (inEcho()) return;
+      const v = snap.val();
+      if (Array.isArray(v)) store.EMPLOYEES = v;
+      rerender();
+    }, (e) => console.warn('listener EMPLOYEES:', e));
+
+    onValue(ref(db, `${root}/SH`), (snap) => {
+      if (inEcho()) return;
+      const v = snap.val();
+      if (v && typeof v === 'object') store.SH = v;
+      rerender();
+    }, (e) => console.warn('listener SH:', e));
+
+    onValue(ref(db, `${root}/customCounter`), (snap) => {
+      if (inEcho()) return;
+      const v = snap.val();
+      if (typeof v === 'number') store.customCounter = v;
+    }, (e) => console.warn('listener customCounter:', e));
+
+    onValue(ref(db, `${root}/baseDate`), (snap) => {
+      if (inEcho()) return;
+      const v = snap.val();
+      if (typeof v === 'number') store.baseDate = v;
+    }, (e) => console.warn('listener baseDate:', e));
+
+    onValue(ref(db, `${root}/logEntries`), (snap) => {
+      if (inEcho()) return;
+      const v = snap.val();
+      if (Array.isArray(v)) store.logEntries = v;
+    }, (e) => console.warn('listener logEntries:', e));
+
+    // Listener de weeks: aplica el snapshot completo de semanas y, si la
+    // semana actual existe, refresca schedule/edited. No vacía nunca el
+    // schedule local si la semana actual no existe en remoto.
+    onValue(ref(db, `${root}/weeks`), (snap) => {
+      if (inEcho()) return;
+      const v = snap.val() || {};
+      store.weeks = v;
+      const wk = getCurrentWeekStr();
+      if (store.weeks[wk]) {
+        store.schedule = store.weeks[wk].schedule;
+        store.edited = store.weeks[wk].edited;
       }
-    }, (error) => {
-      console.warn("Error leyendo Firebase:", error);
-    });
+      rerender();
+    }, (e) => console.warn('listener weeks:', e));
   } catch(e) {
     console.warn("Firebase no configurado aún:", e);
   }
