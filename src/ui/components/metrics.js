@@ -1,10 +1,10 @@
-import { store } from '../../state/store.js';
+import { store, getWeekEmployees } from '../../state/store.js';
 import { validate } from '../../domain/validation.js';
 
 export function renderMetrics() {
   const v = validate();
   const ec = store.edited.flat().filter(Boolean).length;
-  const EMPLOYEES = store.EMPLOYEES;
+  const EMPLOYEES = getWeekEmployees();
 
   return `<div class="metric ${v.allH ? 'ok' : 'err'}">
     <div class="m-lbl">40h · semanales</div>

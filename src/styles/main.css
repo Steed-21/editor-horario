@@ -179,3 +179,9 @@ td.total-cell{background:transparent;vertical-align:middle;font-size:10px;font-w
   .shift-pill{font-size:10px;min-height:34px}
   .metric{min-width:100%}
 }
+
+/* Keep native employee controls visibly operable from the keyboard. */
+#modalBody button:focus-visible, #modalBody input:focus-visible, #modalBody select:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 3px;
+}

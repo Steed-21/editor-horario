@@ -1,34 +1,68 @@
+import { migrateRosterState, usableRoster } from '../domain/roster.js';
 import { DEFAULT_EMPLOYEES } from '../config/employees.js';
 import { DEFAULT_SHIFTS } from '../config/shifts.js';
+import { usableCell } from '../domain/shift.js';
 import { getMonday } from '../domain/dateUtils.js';
 import { db, ref, onValue, set } from '../services/firebase.js';
 
 export const store = {
   EMPLOYEES: JSON.parse(JSON.stringify(DEFAULT_EMPLOYEES)),
+  schemaVersion: 2,
+  weekRosters: {},
+  employeeCounter: 0,
+  scheduleRoster: null,
   SH: JSON.parse(JSON.stringify(DEFAULT_SHIFTS)),
   customCounter: 0,
   wo: 0,
   baseDate: getMonday(),
+  selectedWeek: null,
   currentDates: [],
   weeks: {},
   isAdmin: false,
   view: 'person',
   schedule: [],
+  weekStatus: 'missing',
+  snapshotSource: 'loading',
+  persistenceStatus: 'loading',
+  pendingWrite: null,
+  writeError: null,
   edited: [],
   currentEdit: null,
+  activeEditor: null,
+  editorInvalidated: false,
   logEntries: [
     { ts: '[init]', msg: 'v5.1 · Sistema Horario Listo', type: 'ok' }
   ]
 };
 
 export function getCurrentWeekStr() {
+  if (store.selectedWeek) return store.selectedWeek;
   const d = new Date(store.baseDate);
   d.setDate(d.getDate() + store.wo * 7);
   return d.toISOString().split('T')[0];
 }
 
-// Normaliza las celdas que vienen de Firebase, que elimina las claves null.
-// bs → null, bd → 1 por defecto.
+export function ensureRosterHistory() {
+  const migrated = migrateRosterState({ ...store, schemaVersion: undefined });
+  store.EMPLOYEES = migrated.EMPLOYEES;
+  store.weekRosters = migrated.weekRosters;
+  store.employeeCounter = migrated.employeeCounter;
+}
+export function getActiveEmployees() {
+  return store.EMPLOYEES.filter(e => e?.active !== false);
+}
+export function getWeekEmployees() {
+  if (store.scheduleRoster) return store.scheduleRoster;
+  const key = getCurrentWeekStr();
+  if (Object.hasOwn(store.weekRosters || {}, key)) {
+    const roster = store.weekRosters[key];
+    if (Array.isArray(roster)) return roster;
+    return (store.weeks[key]?.schedule || []).map((_, i) =>
+      ({ id: null, name: `Fila ${i + 1} · atribución desconocida`, freeDay: null, active: false }));
+  }
+  return store.EMPLOYEES.slice(0, store.schedule.length || store.weeks[key]?.schedule?.length || 0);
+}
+
 function normalizeSchedule(raw) {
   return (raw || []).map(row =>
     (row || []).map(cell => ({
@@ -39,104 +73,307 @@ function normalizeSchedule(raw) {
   );
 }
 
-// Aplica un snapshot completo de Firebase al store y actualiza el schedule
-// de la semana actual si existe.
-function applySnapshot(v) {
-  if (!v || typeof v !== 'object') return;
-  if (Array.isArray(v.EMPLOYEES)) store.EMPLOYEES = v.EMPLOYEES;
-  if (v.SH && typeof v.SH === 'object') store.SH = v.SH;
-  if (typeof v.customCounter === 'number') store.customCounter = v.customCounter;
-  if (v.baseDate && typeof v.baseDate === 'string') store.baseDate = v.baseDate;
-  if (Array.isArray(v.logEntries)) store.logEntries = v.logEntries;
-  if (v.weeks && typeof v.weeks === 'object') {
-    store.weeks = v.weeks;
-    const wk = getCurrentWeekStr();
-    if (store.weeks[wk]) {
-      store.schedule = normalizeSchedule(store.weeks[wk].schedule);
-      store.edited = store.weeks[wk].edited
-        || store.schedule.map(r => r.map(() => false));
+// Compare data rather than property insertion order or Firebase's omitted nulls.
+export function sameData(a, b) {
+  const canonical = value => {
+    if (Array.isArray(value)) return value.map(canonical);
+    if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort()
+      .filter(key => value[key] != null).map(key => [key, canonical(value[key])]));
+    return value;
+  };
+  return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
+}
+
+// Session-only quarantine: never add markers to, normalize, or repair legacy records.
+let legacyWeeks = new Map();
+let historicalRosters = new Map();
+function weekShape(week) {
+  return Array.isArray(week?.schedule) && week.schedule.length > 0
+    && week.schedule.every(row => Array.isArray(row) && row.length === 7
+      && row.every(cell => cell && typeof cell.id === 'string'
+        && (cell.bd == null || cell.bd === 0.5 || cell.bd === 1)
+        && (cell.bs == null || (Number.isFinite(cell.bs) && cell.bs >= 0
+          && cell.bs + (cell.bd ?? 1) <= 24))));
+}
+function captureLegacyWeeks() {
+  const next = new Map();
+  for (const [key, week] of Object.entries(store.weeks)) {
+    const serialized = JSON.stringify(week);
+    const previous = legacyWeeks.get(key);
+    if (previous?.serialized === serialized) { next.set(key, previous); continue; }
+    if (!weekShape(week)) continue;
+    const missing = new Set(week.schedule.flat().filter(cell => !Object.hasOwn(store.SH, cell.id)).map(cell => cell.id));
+    if (missing.size && week.schedule.every(row => row.every(cell => missing.has(cell.id) || usableCell(cell, store.SH)))) {
+      next.set(key, { serialized, missing });
     }
   }
+  legacyWeeks = next;
+}
+export function isLegacyWeek(key = getCurrentWeekStr()) {
+  return legacyWeeks.has(key);
 }
 
-// ─── GUARDAR ────────────────────────────────────────────────────────────────
-// Escribe el estado completo del admin en Firebase (fuente de verdad).
-// También actualiza localStorage como caché de arranque rápido.
-// Solo el admin puede escribir (Firebase Rules: auth != null).
-export function saveState() {
-  if (!store.isAdmin) return;
+export function invalidateEditor() {
+  store.currentEdit = null;
+  store.activeEditor = null;
+  store.editorInvalidated = true;
+}
 
-  // Asegurarnos de que la semana actual está en store.weeks antes de guardar.
-  const wk = getCurrentWeekStr();
-  if (store.schedule.length > 0) {
-    store.weeks[wk] = { schedule: store.schedule, edited: store.edited };
+function editorData() {
+  const editor = store.activeEditor;
+  if (store.currentEdit) {
+    const { pi, di } = store.currentEdit;
+    return [getCurrentWeekStr(), store.weekStatus === 'invalid', store.schedule[pi]?.[di],
+      store.edited[pi]?.[di], getWeekEmployees()[pi], store.SH];
   }
-
-  const snapshot = {
-    EMPLOYEES: store.EMPLOYEES,
-    SH: store.SH,
-    customCounter: store.customCounter,
-    baseDate: store.baseDate,
-    weeks: store.weeks,
-    logEntries: store.logEntries,
-  };
-
-  // Caché local para arranque offline/rápido.
-  localStorage.setItem('horario_v5_state', JSON.stringify(snapshot));
-
-  // set() escribe el nodo completo de forma atómica.
-  // El listener onValue recibirá el eco de nuestra escritura y aplicará
-  // exactamente los datos que acabamos de guardar — esto es correcto y seguro.
-  try {
-    set(ref(db, 'horario_v5_state'), snapshot)
-      .catch(e => console.warn('[Firebase] Guardado falló:', e));
-  } catch(e) { console.warn(e); }
+  if (editor?.kind === 'employee') return [editor.index, store.EMPLOYEES];
+  if (editor?.kind === 'shift') return [editor.id, store.SH[editor.id]];
+  if (editor?.kind === 'employees') return store.EMPLOYEES;
+  if (editor?.kind === 'shifts') return store.SH;
+  return null;
 }
 
-// ─── SINCRONIZAR ─────────────────────────────────────────────────────────────
-// Arquitectura: UN SOLO listener en la raíz. Firebase es la fuente de verdad.
-// Flujo:
-//   1. Carga localStorage al instante → UI visible sin esperar red.
-//   2. Dispara el callback (setupEvents + primer render).
-//   3. El listener de Firebase actualiza el store cada vez que hay un cambio
-//      (propio o de otro dispositivo) y vuelve a renderizar.
-//
-// Sin cooldown anti-eco: el SDK de Firebase desactiva el listener de red en
-// modo offline y los datos siempre son los últimos confirmados por el servidor.
-// Confiar en Firebase es más simple y fiable que gestionar cooldowns manuales.
+function applySnapshot(v) {
+  const selected = getCurrentWeekStr();
+  const before = editorData();
+  v = v && typeof v === 'object' ? v : {};
+  store.schemaVersion = v.schemaVersion ?? 2;
+  const migrated = migrateRosterState({ ...v, EMPLOYEES: v.EMPLOYEES ?? store.EMPLOYEES });
+  for (const [key, week] of Object.entries(v.weeks || {})) {
+    if (!Object.hasOwn(v.weekRosters || {}, key) && store.weekRosters[key]
+        && JSON.stringify(week) === JSON.stringify(store.weeks[key])) migrated.weekRosters[key] = store.weekRosters[key];
+  }
+  store.weekRosters = migrated.weekRosters;
+  store.employeeCounter = migrated.employeeCounter;
+  historicalRosters = new Map(Object.entries(store.weekRosters).map(([key, roster]) => [key, JSON.stringify(roster)]));
+  store.scheduleRoster = null;
+  if (Array.isArray(v.EMPLOYEES)) store.EMPLOYEES = migrated.EMPLOYEES;
+  if (v.SH && typeof v.SH === 'object' && !Array.isArray(v.SH)) store.SH = v.SH;
+  if (typeof v.customCounter === 'number') store.customCounter = v.customCounter;
+  if (typeof v.baseDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v.baseDate)
+      && Number.isFinite(Date.parse(v.baseDate))) store.baseDate = v.baseDate;
+  store.selectedWeek = selected;
+  store.wo = Math.round((Date.parse(selected) - Date.parse(store.baseDate)) / 604800000);
+  store.logEntries = Array.isArray(v.logEntries) ? v.logEntries.filter(e => e && typeof e === 'object') : [];
+  store.weeks = v.weeks && typeof v.weeks === 'object' && !Array.isArray(v.weeks) ? v.weeks : {};
+  captureLegacyWeeks();
+  loadSelectedWeek(false);
+  if (!sameData(before, editorData())) invalidateEditor();
+}
+
+// Navigation only selects existing data; snapshots preserve unchanged editors.
+export function loadSelectedWeek(invalidate = true) {
+  ensureRosterHistory();
+  if (invalidate) invalidateEditor();
+  store.schedule = [];
+  store.scheduleRoster = null;
+  store.edited = [];
+  store.weekStatus = 'missing';
+  const key = getCurrentWeekStr();
+  if (!Object.hasOwn(store.weeks, key)) return;
+  const week = store.weeks[key];
+  const raw = week?.schedule;
+  if (!weekShape(week)) { store.weekStatus = 'invalid'; return; }
+  if (!usableRoster(getWeekEmployees())) { store.weekStatus = 'legacy'; return; }
+  if (isLegacyWeek(key)) {
+    store.weekStatus = JSON.stringify(week) === legacyWeeks.get(key).serialized ? 'legacy' : 'invalid';
+    return;
+  }
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length !== getWeekEmployees().length
+      || !getWeekEmployees().every(e => e && typeof e.name === 'string')
+      || !raw.every(row => Array.isArray(row) && row.length === 7
+        && row.every(cell => usableCell(cell, store.SH)))) {
+    store.weekStatus = 'invalid';
+    return;
+  }
+  store.schedule = normalizeSchedule(raw);
+  store.edited = raw.map((row, pi) => row.map((_, di) => week.edited?.[pi]?.[di] === true));
+  store.weekStatus = 'loaded';
+}
+
+export function canUseShiftCatalog(shifts, weeks = store.weeks) {
+  if (!Array.isArray(store.schedule) || !store.schedule.every(row => Array.isArray(row)
+      && row.every(cell => usableCell(cell, shifts)))) return false;
+  for (const [key, legacy] of legacyWeeks) {
+    if (!Object.hasOwn(weeks, key) || JSON.stringify(weeks[key]) !== legacy.serialized
+        || [...legacy.missing].some(id => Object.hasOwn(shifts, id))) return false;
+  }
+  return Object.entries(weeks).every(([key, week]) => weekShape(week)
+    && week.schedule.every(row => row.every(cell => legacyWeeks.get(key)?.missing.has(cell.id)
+      || usableCell(cell, shifts))));
+}
+
+export function shiftHasHistory(id) {
+  // Unknown history is a validation failure, never evidence of an unused key.
+  return Object.values(store.weeks).some(week => !Array.isArray(week?.schedule)
+    || week.schedule.some(row => !Array.isArray(row) || row.some(cell => !cell || cell.id === id)));
+}
+
+export function employeeHasHistory(index) {
+  ensureRosterHistory();
+  const id = store.EMPLOYEES[index]?.id;
+  return !id || Object.entries(store.weeks).some(([key, week]) => !Array.isArray(week?.schedule)
+    || !usableRoster(store.weekRosters[key]) || store.weekRosters[key].some(e => e.id === id));
+}
+
+const clone = value => JSON.parse(JSON.stringify(value));
+let writeSequence = 0;
+let acknowledged = null;
+let syncEpoch = 0;
+let syncFailure = null;
+function currentSnapshot() {
+  return { schemaVersion: 2, weekRosters: store.weekRosters, employeeCounter: store.employeeCounter, EMPLOYEES: store.EMPLOYEES, SH: store.SH, customCounter: store.customCounter,
+    baseDate: store.baseDate, weeks: store.weeks, logEntries: store.logEntries };
+}
+function cache(snapshot, provenance) {
+  try {
+    localStorage.setItem('horario_v5_state', JSON.stringify({ data: snapshot, provenance }));
+  } catch (_error) { /* Cache availability does not determine write acknowledgement. */ }
+}
+function rerender() {
+  if (window._renderUI) window._renderUI();
+}
+
+function rejectPersistence(reason) {
+  store.persistenceStatus = 'failed';
+  store.writeError = `Persistence blocked: ${reason}`;
+  rerender();
+  throw new Error(store.writeError);
+}
+
+export function saveState({ saveSelectedWeek = true } = {}) {
+  if (!store.isAdmin) return;
+  if (store.schemaVersion > 2) rejectPersistence('unsupported schema version');
+  ensureRosterHistory();
+  for (const [key, roster] of historicalRosters) {
+    if (Object.hasOwn(store.weeks, key) && JSON.stringify(store.weekRosters[key]) !== roster) {
+      rejectPersistence('historical attribution changed');
+    }
+  }
+  if (!usableRoster(store.EMPLOYEES)) rejectPersistence('invalid employee catalog');
+  if (syncFailure) rejectPersistence(`Synchronization failed: ${syncFailure}`);
+  if (!canUseShiftCatalog(store.SH)) rejectPersistence('unresolved shift references or unusable definitions');
+  const wk = getCurrentWeekStr();
+  let weeks = store.weeks;
+  if (saveSelectedWeek && store.schedule.length > 0) {
+    if (isLegacyWeek(wk) || store.weekStatus === 'legacy') rejectPersistence('legacy week is read-only');
+    if (!usableRoster(getWeekEmployees()) || store.schedule.length !== getWeekEmployees().length
+        || !store.schedule.every(row => row.length === 7)) rejectPersistence('incomplete week');
+    weeks = { ...store.weeks, [wk]: { schedule: normalizeSchedule(store.schedule), edited: store.edited.map(row => [...row]) } };
+  }
+  if (!canUseShiftCatalog(store.SH, weeks)) rejectPersistence('invalid write target or changed legacy history');
+  if (saveSelectedWeek && store.schedule.length > 0) {
+    store.weekRosters = { ...store.weekRosters, [wk]: clone(getWeekEmployees()) };
+  }
+  store.weeks = weeks;
+  const snapshot = clone(currentSnapshot());
+  const token = ++writeSequence;
+  const lifecycle = syncEpoch;
+  store.pendingWrite = token;
+  store.persistenceStatus = 'pending';
+  store.writeError = null;
+  cache(snapshot, 'pending');
+  rerender();
+  const finish = (status, error = null) => {
+    if (store.pendingWrite !== token || lifecycle !== syncEpoch) return;
+    store.pendingWrite = null;
+    if (syncFailure) {
+      store.persistenceStatus = 'failed';
+      store.writeError = syncFailure;
+      rerender();
+      return;
+    }
+    store.writeError = error;
+    if (status === 'persisted') {
+      acknowledged = snapshot;
+      store.persistenceStatus = sameData(snapshot, currentSnapshot()) ? 'persisted' : 'listener';
+      if (store.persistenceStatus === 'persisted' && store.schedule.length && store.weekStatus !== 'invalid') {
+        store.weekStatus = 'persisted';
+      }
+      cache(currentSnapshot(), store.persistenceStatus);
+    } else store.persistenceStatus = status;
+    rerender();
+  };
+  try {
+    // Only fulfillment of this write promise acknowledges this exact payload.
+    return Promise.resolve(set(ref(db, 'horario_v5_state'), snapshot)).then(
+      () => finish('persisted'), error => finish('failed', String(error.message || error)));
+  } catch (error) {
+    finish('failed', String(error.message || error));
+    return Promise.resolve();
+  }
+}
+
 export function syncState(callback) {
-  // 1. Carga rápida desde localStorage
-  const localData = localStorage.getItem('horario_v5_state');
+  const lifecycle = ++syncEpoch;
+  let active = true;
+  let failed = false;
+  let unsubscribe;
+  acknowledged = null;
+  syncFailure = null;
+  store.pendingWrite = null;
+  store.writeError = null;
+  store.snapshotSource = 'loading';
+  store.persistenceStatus = 'loading';
+  const isCurrent = () => active && lifecycle === syncEpoch;
+  const stop = () => {
+    if (!active) return;
+    active = false;
+    if (typeof unsubscribe === 'function') unsubscribe();
+    if (lifecycle !== syncEpoch) return;
+    ++syncEpoch;
+    acknowledged = null;
+    syncFailure = null;
+    store.pendingWrite = null;
+    store.writeError = null;
+    store.snapshotSource = 'loading';
+    store.persistenceStatus = 'loading';
+    store.weeks = {};
+    store.weekRosters = {};
+    store.scheduleRoster = null;
+    legacyWeeks = new Map();
+    historicalRosters = new Map();
+    store.schedule = [];
+    store.edited = [];
+    store.logEntries = [];
+    store.weekStatus = 'missing';
+    invalidateEditor();
+  };
+  const fail = error => {
+    if (!isCurrent() || failed) return;
+    failed = true;
+    syncFailure = String(error.message || error);
+    store.persistenceStatus = 'failed';
+    store.writeError = syncFailure;
+    rerender();
+  };
+  let localData;
+  try { localData = localStorage.getItem('horario_v5_state'); } catch (_error) { /* Continue without browser cache. */ }
   if (localData) {
     try {
-      applySnapshot(JSON.parse(localData));
-    } catch (_e) { /* localStorage corrupto: continuar con defaults */ }
+      const cached = JSON.parse(localData);
+      applySnapshot(cached?.data ?? cached);
+      store.snapshotSource = 'cached';
+      store.persistenceStatus = 'cached';
+    } catch (_e) { /* Ignore corrupt cache and continue loading. */ }
   }
-
-  // 2. Arrancar la UI sin esperar a Firebase
-  if (callback) { callback(); callback = null; }
-  if (window._renderUI) window._renderUI();
-
-  // 3. Listener único en la raíz — Firebase como fuente de verdad
+  if (callback) callback();
+  else rerender();
   try {
-    onValue(ref(db, 'horario_v5_state'), (snap) => {
-      const v = snap.val();
-
-      if (!v) {
-        // Firebase vacío: la UI ya está renderizada con defaults/localStorage.
-        // No hacer nada — evitar sobrescribir con nulo.
-        return;
+    unsubscribe = onValue(ref(db, 'horario_v5_state'), snap => {
+      if (!isCurrent() || failed) return;
+      applySnapshot(snap.val());
+      store.snapshotSource = 'listener';
+      // RTDB delivers optimistic and offline events; delivery is not an acknowledgement.
+      if (store.pendingWrite != null) store.persistenceStatus = 'pending';
+      else if (store.persistenceStatus !== 'failed') {
+        store.persistenceStatus = acknowledged && sameData(acknowledged, currentSnapshot()) ? 'persisted' : 'listener';
       }
-
-      // Aplicar datos de Firebase (siempre canónicos).
-      applySnapshot(v);
-
-      // Actualizar caché local con los datos más recientes de Firebase.
-      localStorage.setItem('horario_v5_state', JSON.stringify(v));
-
-      if (window._renderUI) window._renderUI();
-    }, (e) => console.warn('[Firebase] Listener error:', e));
-  } catch(e) {
-    console.warn('[Firebase] No configurado:', e);
+      cache(currentSnapshot(), store.persistenceStatus);
+      rerender();
+    }, fail);
+  } catch (error) {
+    fail(error);
   }
+  return stop;
 }

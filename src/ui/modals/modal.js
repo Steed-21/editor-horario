@@ -7,4 +7,5 @@ export function openModal() {
 export function closeModal() {
   document.getElementById('modalBg').style.display = 'none';
   store.currentEdit = null;
+  store.activeEditor = null;
 }

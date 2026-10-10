@@ -1,14 +1,17 @@
-import { store, saveState } from '../../state/store.js';
-import { shiftGrossHours, shiftNetHours } from '../../domain/shift.js';
+import { store, saveState, canUseShiftCatalog, shiftHasHistory, sameData } from '../../state/store.js';
+import { shiftGrossHours, shiftNetHours, usableShift } from '../../domain/shift.js';
 import { log } from '../components/log.js';
 import { openModal } from './modal.js';
 import { render } from '../layout.js';
 import { formatHour } from '../../domain/dateUtils.js';
-import { esc } from '../../utils/escape.js';
+import { esc, jsArg } from '../../utils/escape.js';
 
 export function openShiftBaseEditor() {
+  store.currentEdit = null;
+  store.activeEditor = { kind: 'shifts' };
+  store.editorInvalidated = false;
   document.getElementById('modalTitle').textContent = 'Editar turnos base';
-  const ids = Object.keys(store.SH).filter(id => id !== 'OFF');
+  const ids = Object.keys(store.SH).filter(id => id !== 'OFF' && usableShift(id, store.SH[id]));
   const rows = ids.map(id => {
     const sh = store.SH[id];
     const lb = sh.start === sh.end ? sh.abbr || sh.name : `${formatHour(sh.start)}–${formatHour(sh.end)}`;
@@ -19,17 +22,18 @@ export function openShiftBaseEditor() {
       : (sh.defaultBs != null 
         ? `<span class="net">${nh}h netas</span> · ${gh}h brutas · ⏸def ${formatHour(sh.defaultBs)}–${formatHour(sh.defaultBs + (sh.defaultBd||1))}` 
         : `<span class="net">${nh}h</span> · sin descanso`);
-    const db = !sh.builtin ? `<button class="del" onclick="window.deleteShift('${id}')">×</button>` : '<span style="width:24px"></span>';
+    const db = !sh.builtin ? `<button class="del" onclick="window.deleteShift(${jsArg(id)})">×</button>` : '<span style="width:24px"></span>';
     
-    return `<div class="shift-item ${sh.builtin ? '' : 'custom'} ${sh.cls}">
+    return `<div class="shift-item ${sh.builtin ? '' : 'custom'} ${esc(sh.cls)}">
       <span class="sh-id">${esc(id)}</span>
-      <span class="sh-info"><strong>${esc(sh.name)}</strong> (${esc(sh.abbr || sh.id)}) · ${lb}<br>${brkTxt}</span>
-      <button onclick="window.openSingleShiftEditor('${esc(id)}')">Editar</button>
+      <span class="sh-info"><strong>${esc(sh.name)}</strong> (${esc(sh.abbr || sh.id)}) · ${esc(lb)}<br>${brkTxt}</span>
+      <button onclick="window.openSingleShiftEditor(${jsArg(id)})">Editar</button>
       ${db}
     </div>`;
   }).join('');
 
   document.getElementById('modalBody').innerHTML = `
+    ${Object.entries(store.SH).some(([id, sh]) => !usableShift(id, sh)) ? '<div class="info-box">Catálogo parcial: definiciones inválidas omitidas.</div>' : ''}
     <button class="new-shift-btn" onclick="window.createCustomShift()">+ Crear turno nuevo</button>
     <div class="info-box"><strong>Netas = Brutas − 1h descanso</strong> (si aplica). El descanso por defecto se descuenta automáticamente.</div>
     <div class="shift-list" style="margin-top:.75rem">${rows}</div>
@@ -38,9 +42,11 @@ export function openShiftBaseEditor() {
 }
 
 export function createCustomShift() {
+  if (!store.isAdmin) return;
+  if (!canUseShiftCatalog(store.SH)) { log('Catálogo incompatible con semanas guardadas', 'err'); return; }
   store.customCounter++;
   let id = `X${store.customCounter}`;
-  while (store.SH[id]) {
+  while (Object.hasOwn(store.SH, id) || shiftHasHistory(id)) {
     store.customCounter++;
     id = `X${store.customCounter}`;
   }
@@ -50,13 +56,10 @@ export function createCustomShift() {
 }
 
 export function deleteShift(id) {
-  let used = false;
-  for (let pi = 0; pi < store.EMPLOYEES.length; pi++) {
-    for (let di = 0; di < 7; di++) {
-      if (store.schedule[pi][di].id === id) used = true;
-    }
-  }
-  if (used) {
+  if (!store.isAdmin || !Object.hasOwn(store.SH, id) || !store.SH[id] || store.SH[id].builtin) return;
+  const proposed = { ...store.SH };
+  delete proposed[id];
+  if (!canUseShiftCatalog(proposed)) {
     log(`No se puede eliminar ${id}: en uso`, 'err');
     return;
   }
@@ -68,6 +71,10 @@ export function deleteShift(id) {
 }
 
 export function openSingleShiftEditor(id) {
+  if (!usableShift(id, store.SH[id])) { log('Definición de turno inválida', 'err'); return; }
+  store.currentEdit = null;
+  store.activeEditor = { kind: 'shift', id };
+  store.editorInvalidated = false;
   const sh = store.SH[id];
   const gh = shiftGrossHours(sh);
   const nh = shiftNetHours(sh);
@@ -79,11 +86,11 @@ export function openSingleShiftEditor(id) {
   document.getElementById('modalBody').innerHTML = `
     <div class="edit-grid">
       ${nf}
-      <label>Inicio</label><div class="editor-row"><input type="number" step="0.5" id="edStart" min="0" max="23.5" value="${sh.start}" oninput="window.previewShiftHours()"/></div>
-      <label>Fin</label><div class="editor-row"><input type="number" step="0.5" id="edEnd" min="0.5" max="24" value="${sh.end}" oninput="window.previewShiftHours()"/></div>
+      <label>Inicio</label><div class="editor-row"><input type="number" step="0.5" id="edStart" min="0" max="23.5" value="${esc(sh.start)}" oninput="window.previewShiftHours()"/></div>
+      <label>Fin</label><div class="editor-row"><input type="number" step="0.5" id="edEnd" min="0.5" max="24" value="${esc(sh.end)}" oninput="window.previewShiftHours()"/></div>
       <label>⏸ por defecto</label>
       <div class="editor-row" style="gap:4px">
-        <input type="number" step="0.5" id="edDefBs" min="0" max="23.5" value="${sh.defaultBs != null ? sh.defaultBs : ''}" placeholder="sin" oninput="window.previewShiftHours()" style="width:60px"/>
+        <input type="number" step="0.5" id="edDefBs" min="0" max="23.5" value="${esc(sh.defaultBs)}" placeholder="sin" oninput="window.previewShiftHours()" style="width:60px"/>
         <select id="edDefBd" onchange="window.previewShiftHours()">
           <option value="1" ${sh.defaultBd !== 0.5 ? 'selected' : ''}>1 hora</option>
           <option value="0.5" ${sh.defaultBd === 0.5 ? 'selected' : ''}>30 min</option>
@@ -93,7 +100,7 @@ export function openSingleShiftEditor(id) {
     <div class="info-box" id="hoursPreview"><strong>${nh}h netas</strong> · ${gh}h brutas${sh.defaultBs != null ? ' · descanso ' + formatHour(sh.defaultBs) + '–' + formatHour(sh.defaultBs + (sh.defaultBd||1)) : ' · sin descanso'}</div>
     <div style="display:flex;gap:6px;margin-top:8px">
       <button class="action-btn" onclick="window.openShiftBaseEditor()">← Volver</button>
-      <button class="action-btn primary" onclick="window.saveShiftEdit('${esc(id)}')" style="flex:1">Guardar</button>
+      <button class="action-btn primary" onclick="window.saveShiftEdit(${jsArg(id)})" style="flex:1">Guardar</button>
     </div>
   `;
 }
@@ -121,6 +128,7 @@ export function previewShiftHours() {
 }
 
 export function saveShiftEdit(id) {
+  if (!store.isAdmin || !usableShift(id, store.SH[id])) return;
   const s = parseFloat(document.getElementById('edStart').value);
   const e = parseFloat(document.getElementById('edEnd').value);
   const dbr = document.getElementById('edDefBs').value;
@@ -137,16 +145,19 @@ export function saveShiftEdit(id) {
   
   const bd = parseFloat(document.getElementById('edDefBd').value);
   
-  store.SH[id].start = s;
-  store.SH[id].end = e;
-  store.SH[id].defaultBs = db;
-  store.SH[id].defaultBd = bd;
-  
-  const abbr = document.getElementById('edAbbr').value.trim();
-  const nn = document.getElementById('edName').value.trim();
-  if (abbr) store.SH[id].abbr = abbr;
-  if (nn) store.SH[id].name = nn;
-  
+  const proposed = { ...store.SH[id], start: s, end: e, defaultBs: db, defaultBd: bd,
+    abbr: document.getElementById('edAbbr').value.trim() || store.SH[id].abbr,
+    name: document.getElementById('edName').value.trim() || store.SH[id].name };
+  if (!usableShift(id, proposed) || !canUseShiftCatalog({ ...store.SH, [id]: proposed })) {
+    log(`Error ${id}: definición o descansos inválidos`, 'err');
+    return;
+  }
+  if (!sameData(store.SH[id], proposed) && shiftHasHistory(id)) {
+    log(`Cambio bloqueado: ${id} está en semanas guardadas`, 'err');
+    return;
+  }
+  store.SH[id] = proposed;
+
   const gh = e - s;
   const nh = Math.max(0, gh - (db != null ? bd : 0));
   log(`Turno ${id}: ${formatHour(s)}–${formatHour(e)} · ${nh}h netas (${gh}h brutas)`, 'warn');

@@ -1,13 +1,13 @@
 import { store } from '../state/store.js';
 import { formatHour } from './dateUtils.js';
 
-export function makeCell(id, bsOverride, bdOverride) {
-  const sh = store.SH[id];
+export function makeCell(id, bsOverride, bdOverride, shifts = store.SH) {
+  const sh = shifts[id];
   return { id, bs: bsOverride !== undefined ? bsOverride : sh.defaultBs, bd: bdOverride !== undefined ? bdOverride : (sh.defaultBd || 1) };
 }
 
-export function cellHours(cell) {
-  const sh = store.SH[cell.id];
+export function cellHours(cell, shifts = store.SH) {
+  const sh = shifts[cell.id];
   if (!sh || sh.id === 'OFF') return 0;
   return Math.max(0, (sh.end - sh.start) - (cell.bs != null ? (cell.bd || 1) : 0));
 }

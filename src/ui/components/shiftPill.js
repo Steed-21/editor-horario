@@ -1,6 +1,7 @@
 import { store } from '../../state/store.js';
 import { cellHours, borderClass, cellLabel } from '../../domain/cell.js';
 import { formatHour } from '../../domain/dateUtils.js';
+import { esc } from '../../utils/escape.js';
 
 export function cellHTML(pi, di) {
   const cell = store.schedule[pi][di];
@@ -15,5 +16,5 @@ export function cellHTML(pi, di) {
   const ec = store.edited[pi][di] ? ' edited' : '';
   
   const oc = store.isAdmin ? `onclick="window.openCellEditor(${pi},${di})"` : '';
-  return `<button class="shift-pill ${sh.cls}${ec} ${borderClass(cell)}" ${oc}>${cellLabel(cell)}${bk}</button>`;
+  return `<button class="shift-pill ${esc(sh.cls)}${ec} ${borderClass(cell)}" ${oc}>${esc(cellLabel(cell))}${bk}</button>`;
 }

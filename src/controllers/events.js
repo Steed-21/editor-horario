@@ -1,5 +1,5 @@
-import { store } from '../state/store.js';
-import { regenSchedule } from '../domain/schedule.js';
+import { store, ensureRosterHistory, getActiveEmployees } from '../state/store.js';
+import { buildWeek } from '../domain/schedule.js';
 import { validate } from '../domain/validation.js';
 import { log } from '../ui/components/log.js';
 import { render } from '../ui/layout.js';
@@ -9,14 +9,17 @@ import { openEmployeesEditor } from '../ui/modals/empEditor.js';
 import { DEFAULT_SHIFTS } from '../config/shifts.js';
 import { DEFAULT_EMPLOYEES } from '../config/employees.js';
 import { getMonday } from '../domain/dateUtils.js';
-import { getCurrentWeekStr, saveState } from '../state/store.js';
+import { getCurrentWeekStr, saveState, loadSelectedWeek, canUseShiftCatalog, syncState, isLegacyWeek } from '../state/store.js';
 import { auth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from '../services/firebase.js';
 
 import { openCellEditor, selectShiftForCell, toggleCellBreak, updateCellBreak, confirmCellEdit } from '../ui/modals/cellEditor.js';
 import { createCustomShift, deleteShift, openSingleShiftEditor, previewShiftHours, saveShiftEdit } from '../ui/modals/shiftEditor.js';
-import { openEmployeeAdd, confirmAddEmployee, openEmployeeEdit, saveEmployeeEdit, deleteEmployee } from '../ui/modals/empEditor.js';
+import { openEmployeeAdd, confirmAddEmployee, openEmployeeEdit, saveEmployeeEdit, deleteEmployee, deactivateEmployee } from '../ui/modals/empEditor.js';
 
+const initializedDocuments = new WeakSet();
 export function setupEvents() {
+  if (initializedDocuments.has(document)) return;
+  initializedDocuments.add(document);
   window.openCellEditor = openCellEditor;
   window.selectShiftForCell = selectShiftForCell;
   window.toggleCellBreak = toggleCellBreak;
@@ -36,13 +39,22 @@ export function setupEvents() {
   window.openEmployeeEdit = openEmployeeEdit;
   window.saveEmployeeEdit = saveEmployeeEdit;
   window.deleteEmployee = deleteEmployee;
+  window.deactivateEmployee = deactivateEmployee;
 
   document.getElementById('modalClose')?.addEventListener('click', closeModal);
   document.getElementById('modalBg')?.addEventListener('click', e => {
     if(e.target.id === 'modalBg') closeModal();
   });
 
+  let synchronizedUid = null;
+  let stopSync = null;
   onAuthStateChanged(auth, (user) => {
+    const nextUid = user?.uid ?? null;
+    if (nextUid !== synchronizedUid) {
+      if (stopSync) stopSync();
+      stopSync = null;
+      synchronizedUid = nextUid;
+    }
     // isAdmin se calcula igual que la regla del servidor:
     // email coincide con VITE_ADMIN_EMAIL y el correo está verificado.
     // Cualquier otro usuario autenticado queda en modo solo lectura.
@@ -80,7 +92,10 @@ export function setupEvents() {
         bLogin.style.color = 'var(--text-secondary)';
       }
     }
-    render();
+    if (user && !stopSync) {
+      // Auth resolution owns cache hydration and the single RTDB listener.
+      stopSync = syncState(render);
+    } else render();
   });
 
   // Único uso del botón superior: cerrar sesión. Sin sesión no se ve.
@@ -117,33 +132,12 @@ export function setupEvents() {
       });
   });
 
-  function normalizeSchedule(raw) {
-    return (raw || []).map(row =>
-      (row || []).map(cell => ({
-        ...cell,
-        bs: cell.bs != null ? cell.bs : null,
-        bd: cell.bd != null ? cell.bd : 1,
-      }))
-    );
-  }
-
   function navigateWeek(delta, newDateStr = null) {
-    store.weeks[getCurrentWeekStr()] = { schedule: store.schedule, edited: store.edited };
-    if (newDateStr) {
-      store.baseDate = getMonday(newDateStr);
-      store.wo = 0;
-    } else {
-      store.wo += delta;
-    }
-    const wk = getCurrentWeekStr();
-    if (store.weeks[wk]) {
-      store.schedule = normalizeSchedule(store.weeks[wk].schedule);
-      store.edited = store.weeks[wk].edited || store.schedule.map(r => r.map(() => false));
-    } else {
-      regenSchedule();
-    }
-    log(`Semana: ${wk}`, 'info');
-    saveState();
+    const selected = new Date(newDateStr ? getMonday(newDateStr) : getCurrentWeekStr());
+    if (!newDateStr) selected.setUTCDate(selected.getUTCDate() + delta * 7);
+    store.selectedWeek = selected.toISOString().split('T')[0];
+    store.wo = Math.round((Date.parse(store.selectedWeek) - Date.parse(store.baseDate)) / 604800000);
+    loadSelectedWeek();
     render();
   }
 
@@ -159,14 +153,62 @@ export function setupEvents() {
     navigateWeek(1);
   });
 
+  document.getElementById('bCreateWeek')?.addEventListener('click', () => {
+    if (!store.isAdmin || store.weekStatus !== 'missing' || store.pendingWrite != null) return;
+    try {
+      // Creation is explicit and uses the active catalogs, independently of reset.
+      ensureRosterHistory();
+      const roster = getActiveEmployees();
+      const schedule = buildWeek(store.wo, roster);
+      store.scheduleRoster = structuredClone(roster);
+      store.schedule = schedule;
+      store.edited = schedule.map(row => row.map(() => false));
+      store.weekStatus = 'proposal';
+      saveState();
+    } catch (error) {
+      log(error.message, 'err');
+    }
+    render();
+  });
+
   document.getElementById('bReset')?.addEventListener('click', () => {
+    if (!store.isAdmin) return;
+    if (isLegacyWeek() || store.weekStatus === 'legacy') { log('Restablecer bloqueado: histórico inconsistente de solo lectura', 'err'); return; }
+    const hasHistory = Object.keys(store.weeks).some(key => key !== getCurrentWeekStr());
+    const sameEmployees = store.EMPLOYEES.length === DEFAULT_EMPLOYEES.length
+      && DEFAULT_EMPLOYEES.every((e, pi) => store.EMPLOYEES[pi]?.name === e.name
+        && store.EMPLOYEES[pi]?.freeDay === e.freeDay);
+    const sameShifts = Object.keys(store.SH).length === Object.keys(DEFAULT_SHIFTS).length
+      && Object.entries(DEFAULT_SHIFTS).every(([id, shift]) => Object.entries(shift).every(([field, value]) =>
+        (store.SH[id]?.[field] ?? null) === (value ?? null)) && (store.SH[id]?.defaultBd || 1) === 1);
+    // Check all references before replacing any catalog or generating a week.
+    if ((hasHistory && (!sameEmployees || !sameShifts)) || !canUseShiftCatalog(DEFAULT_SHIFTS)
+        || Object.entries(store.weeks).some(([key, week]) => key !== getCurrentWeekStr()
+          && week.schedule?.length !== DEFAULT_EMPLOYEES.length)) {
+      log('Restablecer bloqueado: afectaría a semanas guardadas', 'err');
+      return;
+    }
+    let schedule;
+    try {
+      schedule = buildWeek(store.wo, DEFAULT_EMPLOYEES, DEFAULT_SHIFTS);
+    } catch (error) {
+      log(error.message, 'err');
+      return;
+    }
     store.SH = JSON.parse(JSON.stringify(DEFAULT_SHIFTS));
-    store.EMPLOYEES = JSON.parse(JSON.stringify(DEFAULT_EMPLOYEES));
+    if (!hasHistory) store.EMPLOYEES = JSON.parse(JSON.stringify(DEFAULT_EMPLOYEES));
     store.customCounter = 0;
-    regenSchedule();
+    ensureRosterHistory();
+    store.scheduleRoster = structuredClone(store.EMPLOYEES);
+    store.schedule = schedule;
+    store.edited = schedule.map(row => row.map(() => false));
+    store.currentEdit = null;
+    store.activeEditor = null;
+    store.editorInvalidated = true;
+    store.weekStatus = 'proposal';
     log('Estado completo restablecido', 'info');
     saveState();
-  render();
+    render();
   });
 
   document.getElementById('bLock')?.addEventListener('click', () => {

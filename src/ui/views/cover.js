@@ -1,8 +1,8 @@
-import { store } from '../../state/store.js';
+import { store, getWeekEmployees } from '../../state/store.js';
 import { DS, CLOSE24 } from '../../config/constants.js';
 
 export function renderCover() {
-  const EMPLOYEES = store.EMPLOYEES;
+  const EMPLOYEES = getWeekEmployees();
   const SH = store.SH;
   const schedule = store.schedule;
   

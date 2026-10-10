@@ -1,4 +1,5 @@
 import { store } from '../../state/store.js';
+import { esc } from '../../utils/escape.js';
 
 export function log(msg, type = 'info') {
   const t = new Date();
@@ -12,6 +13,6 @@ export function renderLog() {
   const logPanel = document.getElementById('logPanel');
   if(!logPanel) return;
   logPanel.innerHTML = store.logEntries.map(e => 
-    `<div class="log-entry"><span class="log-time">[${e.ts}]</span><span class="log-msg ${e.type}">${e.msg}</span></div>`
+    `<div class="log-entry"><span class="log-time">[${esc(e.ts)}]</span><span class="log-msg ${esc(e.type)}">${esc(e.msg)}</span></div>`
   ).join('');
 }

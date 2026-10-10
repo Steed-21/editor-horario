@@ -12,3 +12,7 @@ export function escapeHTML(value) {
 
 // Alias corto para usar en template strings.
 export const esc = escapeHTML;
+
+// Encode a JavaScript string literal, then its containing HTML attribute.
+// HTML escaping alone is insufficient because entities decode before execution.
+export const jsArg = value => esc(JSON.stringify(String(value)));

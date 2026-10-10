@@ -1,4 +1,5 @@
-import { store } from '../state/store.js';
+import { store, getWeekEmployees } from '../state/store.js';
+import { usableCell } from './shift.js';
 import { cellHours } from './cell.js';
 import { DF, CLOSE24 } from '../config/constants.js';
 
@@ -7,12 +8,20 @@ export function totalH(pi) {
 }
 
 export function validate() {
-  const EMPLOYEES = store.EMPLOYEES;
-  const schedule = store.schedule;
+  return validateSchedule(store.schedule, getWeekEmployees(), store.SH);
+}
+
+export function validateSchedule(schedule, EMPLOYEES, shifts) {
+  if (!Array.isArray(schedule) || !EMPLOYEES.length || schedule.length !== EMPLOYEES.length
+      || !schedule.every(row => Array.isArray(row) && row.length === 7
+        && row.every(cell => usableCell(cell, shifts)))) {
+    return { hours: [], allH: false, cierre_ok: false, apertura_ok: false, violations: ['Horario incompleto o referencias inválidas'] };
+  }
   
-  const hours = EMPLOYEES.map((_, pi) => totalH(pi));
+  const hours = schedule.map(row => row.reduce((sum, cell) => sum + cellHours(cell, shifts), 0));
   const allH = hours.every(h => h === 40);
   const violations = [];
+  hours.forEach((h, pi) => { if (h !== 40) violations.push(`Persona ${pi + 1}: ${h}h (requeridas: 40h)`); });
   let cierre_ok = true, apertura_ok = true;
 
   for (let di = 0; di < 7; di++) {
@@ -22,7 +31,7 @@ export function validate() {
     
     for (let pi = 0; pi < EMPLOYEES.length; pi++) {
       const cell = schedule[pi][di];
-      const sh = store.SH[cell.id];
+      const sh = shifts[cell.id];
       if (sh && sh.id !== 'OFF') {
         if (sh.end === closeH) cl++;
         if (sh.start === 9) op++;

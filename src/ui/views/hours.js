@@ -1,16 +1,17 @@
-import { store } from '../../state/store.js';
+import { store, getWeekEmployees } from '../../state/store.js';
 import { DS } from '../../config/constants.js';
 import { cellHours } from '../../domain/cell.js';
+import { esc } from '../../utils/escape.js';
 
 export function renderHours() {
-  const EMPLOYEES = store.EMPLOYEES;
+  const EMPLOYEES = getWeekEmployees();
   let h = '<table><thead><tr><th></th>';
   DS.forEach((d, i) => h += `<th class="${i===4 ? 'vie' : i===5 ? 'sab' : ''}">${d} ${store.currentDates[i].str}</th>`);
   h += '<th>Σh</th></tr></thead><tbody>';
   
   EMPLOYEES.forEach((e, pi) => {
     let tot = 0;
-    h += `<tr><td class="name-cell">${e.name}</td>`;
+    h += `<tr><td class="name-cell">${esc(e.name)}</td>`;
     for (let di = 0; di < 7; di++) {
       const hh = cellHours(store.schedule[pi][di]);
       tot += hh;

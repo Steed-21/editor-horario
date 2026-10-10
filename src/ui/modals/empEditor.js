@@ -1,89 +1,64 @@
-import { store, saveState } from '../../state/store.js';
+import { store, saveState, employeeHasHistory, ensureRosterHistory } from '../../state/store.js';
 import { DF } from '../../config/constants.js';
 import { log } from '../components/log.js';
-import { makeCell } from '../../domain/cell.js';
 import { openModal } from './modal.js';
 import { render } from '../layout.js';
 import { esc } from '../../utils/escape.js';
 
-// Genera una fila de 7 celdas en OFF (libre). Se usa al insertar un empleado
-// nuevo: entra sin horario asignado para que el admin decida turno a turno
-// sin pisar al resto del equipo.
-function makeOffRow() {
-  return Array.from({ length: 7 }, () => makeCell('OFF'));
+import { validFreeDay } from '../../domain/roster.js';
+
+function readDay(id) {
+  const value = document.getElementById(id).value;
+  return /^[0-6]$/.test(value) ? Number(value) : NaN;
 }
-
-// Aplica una operación sobre store.schedule, store.edited y sobre cada
-// schedule/edited de store.weeks. Mantiene consistencia entre la semana
-// actual en memoria y todas las semanas persistidas.
-//
-// CRÍTICO: store.weeks[wk].schedule y store.schedule pueden apuntar al MISMO
-// array (asignación por referencia en saveState/navigateWeek). Si iteramos
-// ambos sin detectar la duplicidad, se aplica la mutación dos veces sobre el
-// mismo array y la semana actual termina con una fila extra. Usamos Set para
-// dedup por referencia.
-function mutateAllSchedules(opSchedule, opEdited) {
-  const seenSched = new Set();
-  const seenEdited = new Set();
-
-  if (Array.isArray(store.schedule)) {
-    opSchedule(store.schedule);
-    seenSched.add(store.schedule);
-  }
-  if (Array.isArray(store.edited)) {
-    opEdited(store.edited);
-    seenEdited.add(store.edited);
-  }
-  if (store.weeks && typeof store.weeks === 'object') {
-    for (const wk of Object.keys(store.weeks)) {
-      const w = store.weeks[wk];
-      if (!w) continue;
-      if (Array.isArray(w.schedule) && !seenSched.has(w.schedule)) {
-        opSchedule(w.schedule);
-        seenSched.add(w.schedule);
-      }
-      if (Array.isArray(w.edited) && !seenEdited.has(w.edited)) {
-        opEdited(w.edited);
-        seenEdited.add(w.edited);
-      }
-    }
-  }
+function validationError(message) {
+  log(message, 'err');
+  const error = document.getElementById('employeeError');
+  if (error) error.textContent = message;
 }
-
 export function openEmployeesEditor() {
+  store.currentEdit = null;
+  store.activeEditor = { kind: 'employees' };
+  store.editorInvalidated = false;
   document.getElementById('modalTitle').textContent = 'Gestión de empleados';
   const rows = store.EMPLOYEES.map((e, i) => `
     <div class="emp-item">
       <div>
         <div class="emp-name">${esc(e.name)}</div>
-        <div class="emp-day">Libre: ${DF[e.freeDay]}</div>
+        <div class="emp-day">${e.active === false ? 'Inactivo' : 'Activo'} · Libre por defecto: ${DF[e.freeDay]}</div>
       </div>
       <button onclick="window.openEmployeeEdit(${i})">Editar</button>
-      <button class="del" onclick="window.deleteEmployee(${i})">×</button>
+      <button onclick="window.deactivateEmployee(${i})">${e.active === false ? 'Activar' : 'Desactivar'}</button>
+      <button class="del" aria-label="Eliminar ${esc(e.name)}" onclick="window.deleteEmployee(${i})">×</button>
       <span style="width:4px"></span>
     </div>
   `).join('');
 
   document.getElementById('modalBody').innerHTML = `
+    <div id="employeeError" role="alert"></div>
     <button class="new-shift-btn" onclick="window.openEmployeeAdd()">+ Añadir empleado</button>
-    <div class="info-box">El nuevo empleado entra con la semana en Libre. Tú asignas sus turnos sin afectar al resto.</div>
+    <div class="info-box">El nuevo empleado estará disponible al crear nuevas semanas. Las semanas guardadas no cambian.</div>
     <div class="emp-list" style="margin-top:.75rem">${rows}</div>
   `;
   openModal();
 }
 
 export function openEmployeeAdd() {
+  store.currentEdit = null;
+  store.activeEditor = { kind: 'employees' };
+  store.editorInvalidated = false;
   document.getElementById('modalTitle').textContent = 'Añadir empleado';
-  const dc = [0, 0, 0, 0, 0];
+  const dc = Array(7).fill(0);
   store.EMPLOYEES.forEach(e => dc[e.freeDay]++);
-  const ds = [0, 1, 2, 3, 4].map(d => `<option value="${d}">${DF[d]} (${dc[d]} ya libran)</option>`).join('');
+  const ds = [0, 1, 2, 3, 4, 5, 6].map(d => `<option value="${d}">${DF[d]} (${dc[d]} ya libran)</option>`).join('');
   
   document.getElementById('modalBody').innerHTML = `
+    <div id="employeeError" role="alert"></div>
     <div class="edit-grid">
-      <label>Nombre</label><div class="editor-row"><input type="text" id="newEmpName" placeholder="Nombre" autofocus/></div>
-      <label>Día libre</label><div class="editor-row"><select id="newEmpDay">${ds}</select></div>
+      <label for="newEmpName">Nombre</label><div class="editor-row"><input type="text" id="newEmpName" placeholder="Nombre" autofocus/></div>
+      <label for="newEmpDay">Día libre por defecto</label><div class="editor-row"><select id="newEmpDay">${ds}</select></div>
     </div>
-    <div class="info-box">Entra con la semana en Libre. Tú asignas sus turnos sin tocar al resto del equipo.</div>
+    <div class="info-box">Disponible para nuevas semanas. Las semanas guardadas conservan sus filas originales.</div>
     <div style="display:flex;gap:6px;margin-top:8px">
       <button class="action-btn" onclick="window.openEmployeesEditor()">← Volver</button>
       <button class="action-btn primary" onclick="window.confirmAddEmployee()" style="flex:1">Añadir</button>
@@ -92,39 +67,42 @@ export function openEmployeeAdd() {
 }
 
 export function confirmAddEmployee() {
+  if (!store.isAdmin) return;
   const n = document.getElementById('newEmpName').value.trim();
-  if (!n) { log('Nombre vacío', 'err'); return; }
+  if (!n) { validationError('Nombre vacío'); return; }
   if (store.EMPLOYEES.some(e => e.name.toLowerCase() === n.toLowerCase())) {
-    log(`"${n}" ya existe`, 'err'); return;
+    validationError(`"${n}" ya existe`); return;
   }
-  const fd = parseInt(document.getElementById('newEmpDay').value);
+  const fd = readDay('newEmpDay');
+  if (!validFreeDay(fd)) { validationError('Día libre inválido'); return; }
 
-  // Insertar empleado al final, y añadir una fila OFF en TODAS las semanas
-  // (actual + las guardadas) para mantener la estructura consistente sin
-  // tocar los horarios ya editados de los demás.
-  store.EMPLOYEES.push({ name: n, freeDay: fd });
-  mutateAllSchedules(
-    (sched) => sched.push(makeOffRow()),
-    (edited) => edited.push(Array(7).fill(false))
-  );
+  ensureRosterHistory();
+  let id;
+  do { id = `employee-${++store.employeeCounter}`; }
+  while (store.EMPLOYEES.some(e => e.id === id) || Object.values(store.weekRosters).some(roster => Array.isArray(roster) && roster.some(e => e?.id === id)));
+  store.EMPLOYEES.push({ id, name: n, freeDay: fd, active: true });
 
-  log(`Añadido: ${n} (libre ${DF[fd]}) · semana en Libre`, 'ok');
-  saveState();
+  log(`Añadido: ${n} (libre ${DF[fd]}) · disponible para nuevas semanas`, 'ok');
+  saveState({ saveSelectedWeek: false });
   render();
   openEmployeesEditor();
 }
 
 export function openEmployeeEdit(idx) {
+  store.currentEdit = null;
+  store.activeEditor = { kind: 'employee', index: idx };
+  store.editorInvalidated = false;
   const e = store.EMPLOYEES[idx];
   document.getElementById('modalTitle').textContent = `Editar: ${e.name}`;
-  const ds = [0, 1, 2, 3, 4].map(d => `<option value="${d}" ${e.freeDay === d ? 'selected' : ''}>${DF[d]}</option>`).join('');
+  const ds = [0, 1, 2, 3, 4, 5, 6].map(d => `<option value="${d}" ${e.freeDay === d ? 'selected' : ''}>${DF[d]}</option>`).join('');
   
   document.getElementById('modalBody').innerHTML = `
+    <div id="employeeError" role="alert"></div>
     <div class="edit-grid">
-      <label>Nombre</label><div class="editor-row"><input type="text" id="edEmpName" value="${esc(e.name)}"/></div>
-      <label>Día libre</label><div class="editor-row"><select id="edEmpDay">${ds}</select></div>
+      <label for="edEmpName">Nombre</label><div class="editor-row"><input type="text" id="edEmpName" value="${esc(e.name)}"/></div>
+      <label for="edEmpDay">Día libre por defecto</label><div class="editor-row"><select id="edEmpDay">${ds}</select></div>
     </div>
-    <div class="info-box">Cambiar el día libre solo actualiza la etiqueta; no toca el horario asignado. Si necesitas cambiar turnos, edita celda por celda.</div>
+    <div class="info-box">Nombre y día libre por defecto se aplican a semanas futuras. Las semanas guardadas conservan su atribución y horario.</div>
     <div style="display:flex;gap:6px;margin-top:8px">
       <button class="action-btn" onclick="window.openEmployeesEditor()">← Volver</button>
       <button class="action-btn primary" onclick="window.saveEmployeeEdit(${idx})" style="flex:1">Guardar</button>
@@ -133,22 +111,22 @@ export function openEmployeeEdit(idx) {
 }
 
 export function saveEmployeeEdit(idx) {
+  if (!store.isAdmin) return;
   const n = document.getElementById('edEmpName').value.trim();
-  const nd = parseInt(document.getElementById('edEmpDay').value);
-  if (!n) { log('Nombre vacío', 'err'); return; }
+  const nd = readDay('edEmpDay');
+  if (!n) { validationError('Nombre vacío'); return; }
   if (store.EMPLOYEES.some((e, i) => i !== idx && e.name.toLowerCase() === n.toLowerCase())) {
-    log(`"${n}" ya existe`, 'err'); return;
+    validationError(`"${n}" ya existe`); return;
   }
 
   const old = store.EMPLOYEES[idx];
   const dayChanged = old.freeDay !== nd;
   const nameChanged = old.name !== n;
 
-  store.EMPLOYEES[idx] = { name: n, freeDay: nd };
+  if (!validFreeDay(nd)) { validationError('Día libre inválido'); return; }
+  ensureRosterHistory();
+  store.EMPLOYEES[idx] = { ...store.EMPLOYEES[idx], name: n, freeDay: nd };
 
-  // Ya NO regeneramos el horario al cambiar el día libre: respetar las
-  // ediciones manuales del admin. Si el nuevo día libre choca con un turno
-  // asignado, el admin lo verá y lo corregirá manualmente.
   if (dayChanged && nameChanged) {
     log(`${n}: ${old.name} → ${n}, libre → ${DF[nd]}`, 'warn');
   } else if (dayChanged) {
@@ -157,28 +135,41 @@ export function saveEmployeeEdit(idx) {
     log(`Nombre: ${old.name} → ${n}`, 'ok');
   }
 
-  saveState();
+  saveState({ saveSelectedWeek: false });
   render();
   openEmployeesEditor();
 }
 
 export function deleteEmployee(idx) {
+  if (!store.isAdmin) return;
   if (store.EMPLOYEES.length <= 1) {
     log('No puedes eliminar al último', 'err');
     return;
   }
+  if (employeeHasHistory(idx)) {
+    validationError('Eliminación bloqueada: empleado en semanas guardadas; usa Desactivar');
+    return;
+  }
   const n = store.EMPLOYEES[idx].name;
 
-  // Quitar solo la fila de este empleado en todas las semanas. El horario
-  // del resto del equipo se mantiene intacto.
+  ensureRosterHistory();
   store.EMPLOYEES.splice(idx, 1);
-  mutateAllSchedules(
-    (sched) => { if (sched.length > idx) sched.splice(idx, 1); },
-    (edited) => { if (edited.length > idx) edited.splice(idx, 1); }
-  );
 
   log(`Eliminado: ${n}`, 'warn');
-  saveState();
+  saveState({ saveSelectedWeek: false });
   render();
   openEmployeesEditor();
+}
+
+export function deactivateEmployee(idx) {
+  if (!store.isAdmin || !store.EMPLOYEES[idx]) return;
+  ensureRosterHistory();
+  const employee = store.EMPLOYEES[idx];
+  if (employee.active && store.EMPLOYEES.filter(e => e.active).length <= 1) {
+    validationError('No puedes desactivar al último empleado activo'); return;
+  }
+  store.EMPLOYEES[idx] = { ...employee, active: !employee.active };
+  log(`${employee.name}: ${employee.active ? 'desactivado' : 'activado'} para semanas futuras`, 'ok');
+  saveState({ saveSelectedWeek: false });
+  render(); openEmployeesEditor();
 }
