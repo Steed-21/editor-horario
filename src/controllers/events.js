@@ -8,7 +8,7 @@ import { openShiftBaseEditor } from '../ui/modals/shiftEditor.js';
 import { openEmployeesEditor } from '../ui/modals/empEditor.js';
 import { DEFAULT_SHIFTS } from '../config/shifts.js';
 import { DEFAULT_EMPLOYEES } from '../config/employees.js';
-import { getMonday } from '../domain/dateUtils.js';
+import { getMonday, addWeeks, weekOffset } from '../domain/dateUtils.js';
 import { getCurrentWeekStr, saveState, loadSelectedWeek, canUseShiftCatalog, syncState, isLegacyWeek } from '../state/store.js';
 import { auth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from '../services/firebase.js';
 
@@ -133,10 +133,8 @@ export function setupEvents() {
   });
 
   function navigateWeek(delta, newDateStr = null) {
-    const selected = new Date(newDateStr ? getMonday(newDateStr) : getCurrentWeekStr());
-    if (!newDateStr) selected.setUTCDate(selected.getUTCDate() + delta * 7);
-    store.selectedWeek = selected.toISOString().split('T')[0];
-    store.wo = Math.round((Date.parse(store.selectedWeek) - Date.parse(store.baseDate)) / 604800000);
+    store.selectedWeek = newDateStr ? getMonday(newDateStr) : addWeeks(getCurrentWeekStr(), delta);
+    store.wo = weekOffset(store.baseDate, store.selectedWeek);
     loadSelectedWeek();
     render();
   }

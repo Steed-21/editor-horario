@@ -2,7 +2,7 @@ import { migrateRosterState, usableRoster } from '../domain/roster.js';
 import { DEFAULT_EMPLOYEES } from '../config/employees.js';
 import { DEFAULT_SHIFTS } from '../config/shifts.js';
 import { usableCell } from '../domain/shift.js';
-import { getMonday } from '../domain/dateUtils.js';
+import { getMonday, addWeeks, weekOffset, isCivilDate } from '../domain/dateUtils.js';
 import { db, ref, onValue, set } from '../services/firebase.js';
 
 export const store = {
@@ -37,9 +37,7 @@ export const store = {
 
 export function getCurrentWeekStr() {
   if (store.selectedWeek) return store.selectedWeek;
-  const d = new Date(store.baseDate);
-  d.setDate(d.getDate() + store.wo * 7);
-  return d.toISOString().split('T')[0];
+  return addWeeks(store.baseDate, store.wo);
 }
 
 export function ensureRosterHistory() {
@@ -150,10 +148,9 @@ function applySnapshot(v) {
   if (Array.isArray(v.EMPLOYEES)) store.EMPLOYEES = migrated.EMPLOYEES;
   if (v.SH && typeof v.SH === 'object' && !Array.isArray(v.SH)) store.SH = v.SH;
   if (typeof v.customCounter === 'number') store.customCounter = v.customCounter;
-  if (typeof v.baseDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v.baseDate)
-      && Number.isFinite(Date.parse(v.baseDate))) store.baseDate = v.baseDate;
+  if (isCivilDate(v.baseDate)) store.baseDate = v.baseDate;
   store.selectedWeek = selected;
-  store.wo = Math.round((Date.parse(selected) - Date.parse(store.baseDate)) / 604800000);
+  store.wo = weekOffset(store.baseDate, selected);
   store.logEntries = Array.isArray(v.logEntries) ? v.logEntries.filter(e => e && typeof e === 'object') : [];
   store.weeks = v.weeks && typeof v.weeks === 'object' && !Array.isArray(v.weeks) ? v.weeks : {};
   captureLegacyWeeks();
