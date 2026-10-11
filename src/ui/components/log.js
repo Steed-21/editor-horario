@@ -2,6 +2,7 @@ import { store } from '../../state/store.js';
 import { esc } from '../../utils/escape.js';
 
 export function log(msg, type = 'info') {
+  if (!store.isAdmin) return;
   const t = new Date();
   const ts = `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}:${String(t.getSeconds()).padStart(2,'0')}`;
   store.logEntries.unshift({ts, msg, type});
@@ -12,6 +13,8 @@ export function log(msg, type = 'info') {
 export function renderLog() {
   const logPanel = document.getElementById('logPanel');
   if(!logPanel) return;
+  logPanel.hidden = !store.isAdmin;
+  if (!store.isAdmin) { logPanel.innerHTML = ''; return; }
   const severity = {
     info: { marker: '·', label: 'Información' }, ok: { marker: '✓', label: 'Correcto' },
     warn: { marker: '▲', label: 'Advertencia' }, err: { marker: '!', label: 'Error' }

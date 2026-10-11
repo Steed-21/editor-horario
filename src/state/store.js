@@ -22,6 +22,7 @@ export const store = {
   view: 'person',
   schedule: [],
   weekStatus: 'missing',
+  readerStatus: 'loading',
   snapshotSource: 'loading',
   persistenceStatus: 'loading',
   pendingWrite: null,
@@ -85,7 +86,7 @@ export function sameData(a, b) {
 // Session-only quarantine: never add markers to, normalize, or repair legacy records.
 let legacyWeeks = new Map();
 let historicalRosters = new Map();
-function weekShape(week) {
+export function weekShape(week) {
   return Array.isArray(week?.schedule) && week.schedule.length > 0
     && week.schedule.every(row => Array.isArray(row) && row.length === 7
       && row.every(cell => cell && typeof cell.id === 'string'
@@ -301,6 +302,29 @@ export function saveState({ saveSelectedWeek = true } = {}) {
   }
 }
 
+export function clearAdminCache() {
+  try { localStorage.removeItem?.('horario_v5_state'); } catch (_error) { /* Storage may be unavailable. */ }
+}
+
+// Invalidate pending writes as well as all data belonging to the prior auth session.
+export function clearSessionState({ admin = false } = {}) {
+  const selected = getCurrentWeekStr();
+  ++syncEpoch;
+  acknowledged = null;
+  syncFailure = null;
+  legacyWeeks = new Map();
+  historicalRosters = new Map();
+  Object.assign(store, {
+    schemaVersion: 2, EMPLOYEES: admin ? clone(DEFAULT_EMPLOYEES) : [],
+    SH: admin ? clone(DEFAULT_SHIFTS) : {}, employeeCounter: 0, customCounter: 0,
+    baseDate: getMonday(), selectedWeek: selected, weeks: {}, weekRosters: {}, scheduleRoster: null,
+    schedule: [], edited: [], logEntries: [], weekStatus: 'missing', readerStatus: 'loading',
+    snapshotSource: 'loading', persistenceStatus: 'loading', pendingWrite: null, writeError: null,
+  });
+  store.wo = weekOffset(store.baseDate, selected);
+  invalidateEditor();
+}
+
 export function syncState(callback) {
   const lifecycle = ++syncEpoch;
   let active = true;
@@ -318,23 +342,8 @@ export function syncState(callback) {
     active = false;
     if (typeof unsubscribe === 'function') unsubscribe();
     if (lifecycle !== syncEpoch) return;
-    ++syncEpoch;
-    acknowledged = null;
-    syncFailure = null;
-    store.pendingWrite = null;
-    store.writeError = null;
-    store.snapshotSource = 'loading';
-    store.persistenceStatus = 'loading';
-    store.weeks = {};
-    store.weekRosters = {};
-    store.scheduleRoster = null;
-    legacyWeeks = new Map();
-    historicalRosters = new Map();
-    store.schedule = [];
-    store.edited = [];
-    store.logEntries = [];
-    store.weekStatus = 'missing';
-    invalidateEditor();
+    clearSessionState();
+    clearAdminCache();
   };
   const fail = error => {
     if (!isCurrent() || failed) return;

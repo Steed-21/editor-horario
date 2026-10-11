@@ -9,6 +9,7 @@ import { renderLog } from './components/log.js';
 import { openShiftBaseEditor, openSingleShiftEditor } from './modals/shiftEditor.js';
 import { renderCellModal } from './modals/cellEditor.js';
 import { render } from './layout.js';
+import { cellHTML } from './components/shiftPill.js';
 
 const malicious = `<img src=x onerror="globalThis.pwned=1">'&`;
 let nodes;
@@ -16,6 +17,7 @@ beforeEach(() => {
   delete globalThis.pwned;
   nodes = Object.fromEntries(['statusRail', 'logPanel', 'modalTitle', 'modalBody', 'modalBg', 'tContainer', 'metricsSide', 'legendBlock'].map(id => [id, { innerHTML: '', textContent: '', style: {} }]));
   vi.stubGlobal('document', { getElementById: id => nodes[id] || null, querySelector: () => null });
+  store.isAdmin = true;
   store.SH = structuredClone(DEFAULT_SHIFTS);
   store.baseDate = '2026-05-11';
   store.wo = 0;
@@ -90,6 +92,23 @@ it('preserves ordinary employee names, shift labels and log text', () => {
   renderLog();
   expect(nodes.logPanel.innerHTML).toContain('Horario actualizado');
 });
+
+it.each([false, true])('shares pill presentation while preserving reader semantics with edited=%s', edited => {
+  store.SH.X1.cls = 'tCUSTOM';
+  store.edited[0][0] = edited;
+  const admin = cellHTML(0, 0);
+  expect(admin).toMatch(/^<button class="shift-pill /);
+  expect(admin).toContain('onclick="window.openCellEditor(0,0)"');
+  expect(admin.includes(' edited ')).toBe(edited);
+
+  store.isAdmin = false;
+  const reader = cellHTML(0, 0);
+  expect(reader).toMatch(/^<span class="shift-pill reader-shift /);
+  expect(reader).toContain('tCUSTOM');
+  expect(reader).not.toMatch(/onclick|<button| edited |tabindex|role="button"/);
+  expect(reader.slice(reader.indexOf('>') + 1, reader.lastIndexOf('</span>')))
+    .toBe(admin.slice(admin.indexOf('>') + 1, admin.lastIndexOf('</button>')));
+});
 it('rerenders remote logs and hides an invalidated editor', () => {
   store.currentEdit = null;
   store.editorInvalidated = true;
@@ -127,9 +146,9 @@ it.each(['loading', 'cached', 'listener', 'pending', 'failed', 'persisted'])('re
   nodes.subtitleTxt = { textContent: '' };
   nodes.bCreateWeek = {};
   store.schedule = []; store.edited = []; store.weekStatus = 'missing';
-  store.isAdmin = false; store.persistenceStatus = status;
+  store.isAdmin = true; store.persistenceStatus = status;
   render();
-  expect(nodes.bCreateWeek.hidden).toBe(true);
+  expect(nodes.bCreateWeek.hidden).toBe(false);
   expect(nodes.statusRail.innerHTML).toContain('semana ausente / no publicada');
   if (status === 'persisted') expect(nodes.statusRail.innerHTML).toContain('escritura confirmada');
   else expect(nodes.statusRail.innerHTML).not.toContain('escritura confirmada');

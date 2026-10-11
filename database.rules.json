@@ -1,0 +1,19 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "horario_v5_state": {
+      ".read": "auth != null && auth.token.email == 'dilanarenis21@gmail.com' && auth.token.email_verified == true",
+      ".write": "auth != null && auth.token.email == 'dilanarenis21@gmail.com' && auth.token.email_verified == true",
+      "SH": { ".read": "auth != null" },
+      "weeks": {
+        "$week": {
+          "schedule": { ".read": "auth != null" }
+        }
+      },
+      "weekRosters": {
+        "$week": { ".read": "auth != null" }
+      }
+    }
+  }
+}

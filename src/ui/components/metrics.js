@@ -21,9 +21,9 @@ export function renderMetrics() {
     <div class="m-val"><span class="status-dot ${v.cierre_ok ? 'dot-ok' : 'dot-err'}"></span>${v.cierre_ok ? 'OK' : 'FALLO'}</div>
     <div class="m-sub">${v.cierre_ok ? 'todos los días' : v.violations.filter(x => x.includes('cierre')).length + ' incidencias'}</div>
   </div>
-  <div class="metric ${ec > 0 ? 'warn' : ''}">
+  ${store.isAdmin ? `<div class="metric ${ec > 0 ? 'warn' : ''}">
     <div class="m-lbl">Ediciones · sesión</div>
     <div class="m-val"><span class="status-dot ${ec > 0 ? 'dot-warn' : ''}"></span>${ec}</div>
     <div class="m-sub">${ec === 0 ? 'sin cambios' : 'modificado'}</div>
-  </div>`;
+  </div>` : ''}`;
 }

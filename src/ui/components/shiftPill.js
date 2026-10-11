@@ -13,8 +13,9 @@ export function cellHTML(pi, di) {
   } else if (sh.id !== 'OFF' && !['PRE','PRE2','POST','POSTF','S'].includes(sh.id) && cellHours(cell) >= 7) {
     bk = `<span class="bk-label" style="color:#FFD700">sin ⏸</span>`;
   }
-  const ec = store.edited[pi][di] ? ' edited' : '';
+  const ec = store.isAdmin && store.edited[pi][di] ? ' edited' : '';
   
+  if (!store.isAdmin) return `<span class="shift-pill reader-shift ${esc(sh.cls)} ${borderClass(cell)}">${esc(cellLabel(cell))}${bk}</span>`;
   const oc = store.isAdmin ? `onclick="window.openCellEditor(${pi},${di})"` : '';
   return `<button class="shift-pill ${esc(sh.cls)}${ec} ${borderClass(cell)}" ${oc}>${esc(cellLabel(cell))}${bk}</button>`;
 }

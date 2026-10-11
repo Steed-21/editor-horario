@@ -39,13 +39,15 @@ export function render() {
   
   const c = document.getElementById('tContainer');
   if (c) {
-    if (store.weekStatus === 'legacy') {
+    if (!store.isAdmin && store.readerStatus === 'failed') {
+      c.textContent = 'No se pudo cargar el horario. Vuelve a iniciar sesión.';
+    } else if (store.weekStatus === 'legacy') {
       c.innerHTML = renderLegacyWeek();
     } else if (store.schedule.length === 0) {
       c.textContent = store.weekStatus === 'invalid' ? 'Horario no disponible: datos inválidos.'
         : store.persistenceStatus === 'loading' ? 'Cargando horario…'
         : 'Sin horario guardado para esta semana.';
-    } else if (store.EMPLOYEES.length === 0) {
+    } else if (store.isAdmin && store.EMPLOYEES.length === 0) {
       c.innerHTML = '<div style="padding:2rem;text-align:center;font-size:11px;color:var(--text-tertiary)">Sin empleados. Añade al menos uno desde "Empleados".</div>';
     } else if (store.view === 'person') {
       c.innerHTML = renderPerson();
@@ -78,12 +80,20 @@ export function render() {
     modal.style.display = 'none';
     store.editorInvalidated = false;
   }
-  renderStatusRail({
+  if (store.isAdmin) renderStatusRail({
     persistenceStatus: store.persistenceStatus,
     weekStatus: store.weekStatus,
     partialCatalog: Object.entries(store.SH).some(([id, sh]) => !usableShift(id, sh)),
     inheritedAttribution: getWeekEmployees().some(e => e?.attribution === 'legacy-observed'),
     writeError: store.writeError
   });
+  else {
+    const rail = document.getElementById('statusRail');
+    if (rail) {
+      rail.textContent = store.readerStatus === 'loading' ? 'SOLO LECTURA · Cargando horario…'
+        : store.readerStatus === 'failed' ? 'SOLO LECTURA · Horario no disponible' : 'SOLO LECTURA';
+      rail.removeAttribute?.('data-persistence');
+    }
+  }
   renderLog();
 }

@@ -309,7 +309,8 @@ td.total-cell{background:transparent;vertical-align:middle;font-size:10px;font-w
   outline: 2px solid var(--text-primary); outline-offset: 3px;
 }
 .container button:disabled { opacity: .5; cursor: not-allowed; }
-.container .shift-pill:hover { transform: translateY(-1px); filter: none; box-shadow: inset 0 0 0 1px rgba(255,255,255,.5); }
+.container .shift-pill { box-shadow: inset 0 -2px 0 var(--text-primary); }
+.container .shift-pill:hover { transform: translateY(-1px); filter: none; box-shadow: inset 0 -2px 0 var(--text-primary), inset 0 0 0 1px rgba(255,255,255,.5); }
 .container .shift-pill:active { transform: scale(.985); }
 .container .shift-pill.edited { box-shadow: inset 0 -2px 0 var(--text-primary); }
 .container .shift-pill.edited:hover { box-shadow: inset 0 -2px 0 var(--text-primary), inset 0 0 0 1px rgba(255,255,255,.5); }
@@ -345,7 +346,7 @@ td.total-cell{background:transparent;vertical-align:middle;font-size:10px;font-w
 }
 @media (prefers-reduced-motion: reduce) {
   .container, .container .modal-bg, .container .modal, .status-rail[data-persistence="persisted"], .state-pending::before { animation: none; }
-  .container :is(button, input, select), .container .metric { transition: none; }
+  .container :is(button, input, select), .container .shift-pill, .container .metric { transition: none; }
   .container button:enabled:active, .container .shift-pill:hover, .container .shift-pill:active, .container .shift-opt:hover { transform: none; }
 }
 /* Let the table scroll inside its grid column rather than widening the page. */
@@ -447,3 +448,7 @@ td.total-cell{background:transparent;vertical-align:middle;font-size:10px;font-w
 /* Reuse schedule hour colors on choices, with readable text on each surface. */
 #modalBody .shift-opt:is(.border-off, .border-7h, .border-8h) { color: #1a1a1a; }
 #modalBody .shift-opt:is(.border-6h, .border-other) { color: #fff; }
+
+/* Read-only pills share decorative hover without button or press affordances. */
+.container .reader-shift { cursor: default; filter: none; }
+.container .reader-shift:active { transform: none; }

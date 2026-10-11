@@ -15,7 +15,7 @@ beforeEach(() => {
   const employee = { id: 'synthetic-id', name: 'Synthetic employee', freeDay: 0, active: true };
   const week = { schedule: [Array.from({ length: 7 }, () => ({ id: 'OFF' }))], edited: [Array(7).fill(false)] };
   snapshot = { schemaVersion: 2, EMPLOYEES: [employee], SH: structuredClone(DEFAULT_SHIFTS), baseDate: '2026-10-05', weeks: { '2026-10-05': week }, weekRosters: { '2026-10-05': [employee] }, logEntries: [] };
-  Object.assign(store, { baseDate: '2026-10-05', selectedWeek: null, wo: 0, isAdmin: false });
+  Object.assign(store, { baseDate: '2026-10-05', selectedWeek: null, wo: 0, isAdmin: true });
   syncState(); onValue.mock.calls[0][1]({ val: () => structuredClone(snapshot) }); setupEvents();
 });
 it.each(['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10', '2026-10-11'])('finds the exact saved civil week from %s and renders its full range', date => {

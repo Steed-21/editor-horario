@@ -11,6 +11,8 @@ import { DEFAULT_SHIFTS } from '../config/shifts.js';
 import { DEFAULT_EMPLOYEES } from '../config/employees.js';
 import { getMonday, addWeeks, weekOffset } from '../domain/dateUtils.js';
 import { getCurrentWeekStr, saveState, loadSelectedWeek, canUseShiftCatalog, syncState, isLegacyWeek } from '../state/store.js';
+import { syncReader } from '../state/readerSync.js';
+import { clearSessionState, clearAdminCache } from '../state/store.js';
 import { auth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from '../services/firebase.js';
 
 import { openCellEditor, selectShiftForCell, toggleCellBreak, updateCellBreak, confirmCellEdit } from '../ui/modals/cellEditor.js';
@@ -47,23 +49,28 @@ export function setupEvents() {
     if(e.target.id === 'modalBg') closeModal();
   });
 
-  let synchronizedUid = null;
+  let synchronizedUid;
+  let synchronizedAdmin;
   let stopSync = null;
   onAuthStateChanged(auth, (user) => {
     const nextUid = user?.uid ?? null;
-    if (nextUid !== synchronizedUid) {
+    const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
+    const nextAdmin = !!user && !!adminEmail
+      && user.email === adminEmail && user.emailVerified === true;
+    if (nextUid !== synchronizedUid || nextAdmin !== synchronizedAdmin) {
       if (stopSync) stopSync();
       stopSync = null;
+      // Preserve admin reload caching, but never hydrate it in another role/session.
+      if (!nextAdmin || synchronizedUid !== undefined) clearAdminCache();
+      clearSessionState({ admin: nextAdmin });
+      for (const id of ['modalTitle', 'modalBody']) {
+        const node = document.getElementById(id);
+        if (node) node.textContent = '';
+      }
       synchronizedUid = nextUid;
+      synchronizedAdmin = nextAdmin;
     }
-    // isAdmin se calcula igual que la regla del servidor:
-    // email coincide con VITE_ADMIN_EMAIL y el correo está verificado.
-    // Cualquier otro usuario autenticado queda en modo solo lectura.
-    const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
-    store.isAdmin = !!user
-      && !!adminEmail
-      && user.email === adminEmail
-      && user.emailVerified === true;
+    store.isAdmin = nextAdmin;
 
     // Auth gate: sin sesión, la app entera queda oculta detrás del login.
     const container = document.querySelector('.container');
@@ -94,8 +101,8 @@ export function setupEvents() {
       }
     }
     if (user && !stopSync) {
-      // Auth resolution owns cache hydration and the single RTDB listener.
-      stopSync = syncState(render);
+      // Auth resolution owns cache hydration and each role's RTDB lifecycle.
+      stopSync = store.isAdmin ? syncState(render) : syncReader(render);
     } else render();
   });
 
@@ -161,7 +168,12 @@ export function setupEvents() {
   function navigateWeek(delta, newDateStr = null) {
     store.selectedWeek = newDateStr ? getMonday(newDateStr) : addWeeks(getCurrentWeekStr(), delta);
     store.wo = weekOffset(store.baseDate, store.selectedWeek);
-    loadSelectedWeek();
+    if (store.isAdmin) loadSelectedWeek();
+    else if (stopSync?.selectWeek) stopSync.selectWeek();
+    else {
+      store.schedule = []; store.edited = []; store.scheduleRoster = [];
+      store.weekStatus = 'missing';
+    }
     render();
     if (!newDateStr) animateWeekNavigation(delta);
   }
