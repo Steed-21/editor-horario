@@ -1,12 +1,11 @@
-import { store, saveState, employeeHasHistory, ensureRosterHistory } from '../../state/store.js';
+import { store, saveState, employeeHasHistory, ensureRosterHistory, deleteCatalogEmployee } from '../../state/store.js';
 import { DF } from '../../config/constants.js';
 import { log } from '../components/log.js';
 import { openModal } from './modal.js';
 import { render } from '../layout.js';
 import { esc } from '../../utils/escape.js';
 
-import { openWeekTeamEditor } from './weekTeamEditor.js';
-import { getCurrentWeekStr, getWeekEmployees } from '../../state/store.js';
+import { openConfirmation } from './confirmation.js';
 
 import { validFreeDay } from '../../domain/roster.js';
 
@@ -33,7 +32,7 @@ export function openEmployeesEditor() {
       </div>
       <button onclick="window.openEmployeeEdit(${i})">Editar</button>
       <button class="state-action" onclick="window.deactivateEmployee(${i})">${e.active === false ? 'Activar' : 'Desactivar'}</button>
-      <button class="del" aria-label="Eliminar ${esc(e.name)}" onclick="window.deleteEmployee(${i})">×</button>
+      <button class="del" aria-label="Eliminar ${esc(e.name)}" data-delete-employee="${esc(e.id)}">×</button>
     </div>
   `).join('');
 
@@ -43,13 +42,10 @@ export function openEmployeesEditor() {
     <button class="new-shift-btn" onclick="window.openEmployeeAdd()">+ Añadir empleado</button>
     <div class="info-box">El nuevo empleado estará disponible al crear nuevas semanas. Las semanas guardadas no cambian.</div>
     <div class="emp-list editor-list">${rows}</div>
-    <section aria-labelledby="weekTeamHeading">
-      <h3 id="weekTeamHeading">Equipo · ${esc(getCurrentWeekStr())}</h3>
-      <p>${getWeekEmployees().length} personas</p>
-      <button type="button" class="new-shift-btn" id="openWeekTeam">Modificar equipo de esta semana</button>
-    </section>
   `;
-  document.getElementById('openWeekTeam')?.addEventListener('click', openWeekTeamEditor);
+  document.getElementById('modalBody').querySelectorAll?.('[data-delete-employee]').forEach(button => {
+    button.addEventListener('click', () => deleteEmployee(button.dataset.deleteEmployee));
+  });
   openModal();
 }
 
@@ -150,25 +146,18 @@ export function saveEmployeeEdit(idx) {
   openEmployeesEditor();
 }
 
-export function deleteEmployee(idx) {
+export function deleteEmployee(employeeId) {
   if (!store.isAdmin) return;
-  if (store.EMPLOYEES.length <= 1) {
-    log('No puedes eliminar al último', 'err');
-    return;
-  }
-  if (employeeHasHistory(idx)) {
-    validationError('Eliminación bloqueada: empleado en semanas guardadas; usa Desactivar');
-    return;
-  }
-  const n = store.EMPLOYEES[idx].name;
-
-  ensureRosterHistory();
-  store.EMPLOYEES.splice(idx, 1);
-
-  log(`Eliminado: ${n}`, 'warn');
-  saveState({ saveSelectedWeek: false });
-  render();
-  openEmployeesEditor();
+  const index = store.EMPLOYEES.findIndex(e => e?.id === employeeId);
+  const employee = store.EMPLOYEES[index];
+  if (!employee) { validationError('El empleado ya no existe.'); return; }
+  const messages = ['Eliminar del catálogo no modifica semanas guardadas. El empleado seguirá apareciendo en cualquier semana donde ya esté asignado.'];
+  if (employeeHasHistory(index)) messages.push('Este empleado tiene historial guardado.');
+  store.currentEdit = null;
+  store.activeEditor = { kind: 'catalog-delete', id: employeeId };
+  store.editorInvalidated = false;
+  openConfirmation({ title: `Eliminar del catálogo: ${employee.name}`, messages, typed: true,
+    onConfirm: confirmation => deleteCatalogEmployee({ employeeId, confirmation }), onCancel: openEmployeesEditor });
 }
 
 export function deactivateEmployee(idx) {

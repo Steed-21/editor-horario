@@ -25,12 +25,12 @@ export function usableWeekTeam(roster, week, shifts) {
 }
 
 // Construct only the intended positional transition; never regenerate planned rows.
-export function planWeekRoster({ key, roster, week, employees, shifts }, { operation, candidateId, targetId }) {
+export function planWeekRoster({ key, roster, week, employees, shifts }, { operation, candidateId, targetId, confirmation, confirmed }) {
   const kind = classifyWeek(key);
-  if (kind === 'past') throw new Error('Histórico: el equipo de esta semana está bloqueado.');
-  if (!['add', 'replace', 'remove'].includes(operation) || (kind === 'current' && operation !== 'add')) {
-    throw new Error('Esta semana solo permite añadir empleados.');
-  }
+  if (kind === 'past') throw new Error('Histórico: esta semana está cerrada.');
+  if (!['add', 'replace', 'remove'].includes(operation)) throw new Error('Operación inválida.');
+  if (operation === 'remove' && confirmation !== 'ELIMINAR') throw new Error('Escribe exactamente ELIMINAR para quitar la fila.');
+  if (operation === 'replace' && kind === 'current' && confirmed !== true) throw new Error('Confirma la sustitución de toda la fila.');
   if (!usableWeekTeam(roster, week, shifts)) throw new Error('Equipo, atribución u horario no válido.');
   const index = roster.findIndex(e => e.id === targetId);
   if (operation !== 'add' && (typeof targetId !== 'string' || !targetId || index < 0)) throw new Error('Empleado de destino inválido.');

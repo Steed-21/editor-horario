@@ -80,15 +80,17 @@ it('deactivates historical identities without removing or remapping rows', async
   await createFuture();
   if (state.store.schedule.length) expect(state.getWeekEmployees().map(e => e.id)).not.toContain(historical[0].id);
   state.store.selectedWeek = key; state.loadSelectedWeek(); expect(state.getWeekEmployees()).toEqual(historical);
-  firebase.set.mockClear(); editor.deleteEmployee(0); expect(firebase.set).not.toHaveBeenCalled();
+  firebase.set.mockClear(); editor.deleteEmployee(state.store.EMPLOYEES[0].id); expect(firebase.set).not.toHaveBeenCalled();
 });
-it('adds then safely deletes an unused identity without remapping history', () => {
+it('adds then explicitly deletes an unused identity without remapping history', async () => {
   const roster = structuredClone(state.getWeekEmployees());
   document.getElementById('newEmpName').value = 'Synthetic new'; document.getElementById('newEmpDay').value = '2';
   editor.confirmAddEmployee();
   const id = state.store.EMPLOYEES.at(-1).id; expect(id).toBeTruthy();
   expect(state.getWeekEmployees()).toEqual(roster); expect(JSON.stringify(state.store.weeks)).toBe(original);
-  editor.deleteEmployee(6); expect(state.getWeekEmployees()).toEqual(roster);
+  await Promise.resolve(); await Promise.resolve();
+  expect((await state.deleteCatalogEmployee({ employeeId: id, confirmation: 'ELIMINAR' })).ok).toBe(true);
+  expect(state.getWeekEmployees()).toEqual(roster);
   editor.confirmAddEmployee(); expect(state.store.EMPLOYEES.at(-1).id).not.toBe(id);
 });
 it('migrates deterministically and idempotently without writes, preserving old week objects', async () => {
@@ -137,7 +139,7 @@ it('preserves unknown legacy attribution as readable and non-editable without in
 });
 it('does not mutate or write from reader employee actions', () => {
   state.store.isAdmin = false;
-  edit('Synthetic renamed', 4); editor.deactivateEmployee(0); editor.deleteEmployee(0);
+  edit('Synthetic renamed', 4); editor.deactivateEmployee(0); editor.deleteEmployee(state.store.EMPLOYEES[0].id);
   expect(state.store.EMPLOYEES[0].name).toBe('Synthetic 0');
   expect(firebase.set).not.toHaveBeenCalled(); expect(state.store.logEntries).toEqual([]);
 });
@@ -164,4 +166,11 @@ it('excludes a deactivated added identity from a successful future week and pres
   state.store.EMPLOYEES[0].name = 'Later current default';
   expect(state.store.weekRosters[future]).toEqual(persistedRoster);
   expect(firebase.set.mock.calls.at(-1)[1].weekRosters[future]).toEqual(persistedRoster);
+});
+
+it('keeps weekly controls separate from the global catalog modal', () => {
+  editor.openEmployeesEditor();
+  expect(nodes.modalBody.innerHTML).toContain('Equipo general');
+  expect(nodes.modalBody.innerHTML).not.toContain('Modificar equipo de esta semana');
+  expect(nodes.modalBody.innerHTML).not.toContain('weekTeamHeading');
 });

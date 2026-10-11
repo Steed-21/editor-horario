@@ -25,16 +25,16 @@ function select(key) {
   api.store.weekRosters[key] = api.store.weekRosters['2026-10-12'];
   api.getCurrentWeekStr.mockReturnValue(key);
 }
-it('shows labelled native add controls without current-week replace or remove controls', () => {
+it('shows labelled native current-week add, replace and remove controls', () => {
   openWeekTeamEditor(); const html = nodes.modalBody.innerHTML;
   expect(html).toContain('for="weekAddCandidate"'); expect(html).toContain('<select id="weekAddCandidate"');
   expect(html).toContain('data-week-operation="add"');
-  expect(html).not.toContain('data-week-operation="replace"'); expect(html).not.toContain('data-week-operation="remove"');
+  expect(html).toContain('data-week-operation="replace"'); expect(html).toContain('data-week-operation="remove"');
   expect(html).toContain('role="alert"'); expect(html).toContain('Se añade con la semana en libre');
 });
 it('shows a locked past roster with no mutation controls', () => {
   select('2026-10-05'); openWeekTeamEditor();
-  expect(nodes.modalBody.innerHTML).toContain('Histórico: el equipo de esta semana está bloqueado.');
+  expect(nodes.modalBody.innerHTML).toContain('Histórico: esta semana está cerrada.');
   expect(nodes.modalBody.innerHTML).toContain('Synthetic a');
   expect(nodes.modalBody.innerHTML).not.toContain('data-week-operation');
 });
@@ -65,7 +65,19 @@ it('disables pending controls and reports a rejected operation through the alert
   buttons = [button]; api.mutateWeekRoster.mockResolvedValue({ ok: false, error: 'Synthetic failure' });
   openWeekTeamEditor(); await click();
   expect(api.mutateWeekRoster).toHaveBeenCalledTimes(1);
-  expect(api.mutateWeekRoster).toHaveBeenCalledWith({ week: '2026-10-12', operation: 'add', candidateId: 'c', targetId: undefined });
+  expect(api.mutateWeekRoster).toHaveBeenCalledWith({ week: '2026-10-12', operation: 'add', candidateId: 'c', targetId: undefined, confirmation: undefined, confirmed: false });
   expect(button.disabled).toBe(true); expect(nodes.weekTeamError.textContent).toBe('Synthetic failure');
   api.store.pendingWrite = 1; openWeekTeamEditor(); expect(nodes.modalBody.innerHTML).toContain('disabled');
+});
+it.each(['replace', 'remove'])('requires a separate current-week %s confirmation view', async operation => {
+  let click;
+  const button = { disabled: false, dataset: { weekOperation: operation, target: 'a', select: 'weekReplace0' }, addEventListener: (_event, fn) => { click = fn; } };
+  buttons = [button]; nodes.weekReplace0 = { value: 'c' };
+  for (const id of ['applyConfirmation', 'cancelConfirmation', 'destructiveConfirmation']) nodes[id] = { value: '', addEventListener: vi.fn() };
+  openWeekTeamEditor(); await click();
+  expect(api.mutateWeekRoster).not.toHaveBeenCalled();
+  expect(nodes.modalBody.innerHTML).toContain(operation === 'replace'
+    ? 'Sustituir cambia la atribución de toda la fila de esta semana, incluidos los días ya transcurridos.'
+    : 'Esto también elimina los días ya transcurridos de esta fila.');
+  expect(nodes.modalBody.innerHTML).toContain(operation === 'remove' ? 'destructiveConfirmation' : 'Confirmar sustitución');
 });

@@ -181,3 +181,9 @@ it('renders severity cues in existing order without altering log data or adding 
   expect(html).toContain('Error:'); expect(html).toContain('Advertencia:');
   expect(html).not.toContain('aria-live'); expect(store.logEntries).toEqual(before);
 });
+
+it.each([true, false])('exposes the weekly action only to admin=%s', admin => {
+  nodes.bEditWeek = {};
+  store.isAdmin = admin; render();
+  expect(nodes.bEditWeek.hidden).toBe(!admin);
+});

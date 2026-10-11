@@ -35,7 +35,7 @@ async function reject(request) {
 it.each(['add', 'replace', 'remove'])('blocks %s for a past week without writing', async operation => {
   select(past); await reject({ operation, candidateId: 'c', targetId: 'a' });
 });
-it.each(['replace', 'remove'])('blocks current-week %s', async operation => {
+it.each(['replace', 'remove'])('blocks unconfirmed current-week %s', async operation => {
   await reject({ operation, candidateId: 'c', targetId: 'a' });
 });
 it.each([current, future])('appends OFF and false rows to %s without changing existing rows or other weeks', async key => {
@@ -70,11 +70,11 @@ it('replaces only the future identity, preserving exact planned and edited rows'
 });
 it('removes the matching future row and preserves remaining positional attribution', async () => {
   select(future);
-  expect((await state.mutateWeekRoster({ operation: 'remove', targetId: 'a' })).ok).toBe(true);
+  expect((await state.mutateWeekRoster({ operation: 'remove', targetId: 'a', confirmation: 'ELIMINAR' })).ok).toBe(true);
   expect(state.store.weekRosters[future]).toEqual([source.weekRosters[future][1]]);
   expect(state.store.weeks[future].schedule).toEqual([source.weeks[future].schedule[1]]);
   expect(state.store.weeks[future].edited).toEqual([source.weeks[future].edited[1]]);
-  firebase.set.mockClear(); await reject({ operation: 'remove', targetId: 'b' });
+  firebase.set.mockClear(); await reject({ operation: 'remove', targetId: 'b', confirmation: 'ELIMINAR' });
 });
 it.each(['d', 'a', 'unknown', ''])('rejects ineligible candidate %s', async candidateId => {
   await reject({ operation: 'add', candidateId });
@@ -193,4 +193,94 @@ it('reports a relevant remote conflict even if the write promise resolves', asyn
   expect(result.ok).toBe(false); expect(result.error).toContain('Conflicto');
   expect(state.store.persistenceStatus).toBe('failed');
   expect(state.store.weekRosters[current][0].name).toBe('Remote identity');
+});
+it('allows explicit current replacement without changing schedule geometry', async () => {
+  expect((await state.mutateWeekRoster({ operation: 'replace', targetId: 'a', candidateId: 'c', confirmed: true })).ok).toBe(true);
+  expect(state.store.weekRosters[current].map(e => e.id)).toEqual(['c', 'b']);
+  expect(bytes(state.store.weeks[current].schedule)).toBe(bytes(source.weeks[current].schedule));
+  expect(bytes(state.store.weeks[current].edited)).toBe(bytes(source.weeks[current].edited));
+});
+it('allows typed-confirmed current removal and records stable audit identity', async () => {
+  expect((await state.mutateWeekRoster({ operation: 'remove', targetId: 'a', confirmation: 'ELIMINAR' })).ok).toBe(true);
+  expect(state.store.weekRosters[current].map(e => e.id)).toEqual(['b']);
+  expect(state.store.weeks[current].schedule).toEqual([source.weeks[current].schedule[1]]);
+  expect(state.store.logEntries[0]).toMatchObject({ employeeId: 'a', employeeName: 'Synthetic a', week: current, operation: 'remove' });
+  expect(bytes(state.store.logEntries)).not.toContain('ELIMINAR');
+});
+it.each(['', 'eliminar', ' ELIMINAR', 'ELIMINAR '])('rejects weekly removal confirmation %s', async confirmation => {
+  select(future); await reject({ operation: 'remove', targetId: 'a', confirmation });
+});
+it('hard deletes historical identity only from the catalog after confirmation', async () => {
+  const before = bytes({ weeks: state.store.weeks, rosters: state.store.weekRosters });
+  expect(state.employeeHasHistory(0)).toBe(true);
+  expect((await state.deleteCatalogEmployee({ employeeId: 'a', confirmation: 'ELIMINAR' })).ok).toBe(true);
+  expect(state.store.EMPLOYEES.map(e => e.id)).toEqual(['b', 'c', 'd']);
+  expect(bytes({ weeks: state.store.weeks, rosters: state.store.weekRosters })).toBe(before);
+  expect(state.getWeekEmployees()[0].id).toBe('a');
+  expect(state.getActiveEmployees().map(e => e.id)).not.toContain('a');
+  expect(bytes(firebase.set.mock.calls[0][1].weeks)).toBe(bytes(source.weeks));
+  expect(bytes(firebase.set.mock.calls[0][1].weekRosters)).toBe(bytes(source.weekRosters));
+});
+it.each(['confirmation', 'reader', 'pending', 'unknown', 'last', 'malformed'])('blocks unsafe catalog deletion: %s', async guard => {
+  let confirmation = 'ELIMINAR', employeeId = 'a';
+  if (guard === 'confirmation') confirmation = 'ELIMINAR ';
+  if (guard === 'reader') state.store.isAdmin = false;
+  if (guard === 'pending') state.store.pendingWrite = 1;
+  if (guard === 'unknown') employeeId = 'unknown';
+  if (guard === 'last') state.store.EMPLOYEES = state.store.EMPLOYEES.slice(0, 1);
+  if (guard === 'malformed') state.store.weekRosters[current] = null;
+  const before = stable();
+  expect((await state.deleteCatalogEmployee({ employeeId, confirmation })).ok).toBe(false);
+  expect(stable()).toBe(before); expect(firebase.set).not.toHaveBeenCalled();
+});
+it('restores exact catalog order after rejected optimistic deletion with no success log', async () => {
+  const before = stable();
+  firebase.set.mockImplementation((_ref, payload) => { delivery(payload); return Promise.reject(new Error('Delete failed')); });
+  expect((await state.deleteCatalogEmployee({ employeeId: 'a', confirmation: 'ELIMINAR' })).ok).toBe(false);
+  expect(stable()).toBe(before); expect(state.store.persistenceStatus).toBe('failed');
+  expect(state.store.logEntries).toEqual([]);
+});
+it('does not replace a newer remote catalog on deletion failure', async () => {
+  let fail;
+  firebase.set.mockImplementation(() => new Promise((_done, reject) => { fail = reject; }));
+  const operation = state.deleteCatalogEmployee({ employeeId: 'a', confirmation: 'ELIMINAR' });
+  const remote = copy(source); remote.EMPLOYEES[0].name = 'Remote catalog name'; delivery(remote);
+  fail(new Error('Delete conflict')); expect((await operation).ok).toBe(false);
+  expect(state.store.EMPLOYEES[0].name).toBe('Remote catalog name');
+});
+it('keeps the newly added weekly cell editable through the unchanged cell editor', async () => {
+  await state.mutateWeekRoster({ operation: 'add', candidateId: 'c' });
+  const nodes = {};
+  vi.stubGlobal('document', { getElementById: id => nodes[id] ||= { style: {}, innerHTML: '' }, querySelectorAll: () => [], querySelector: () => null });
+  state.store.currentDates = Array.from({ length: 7 }, () => ({ str: '14/10' }));
+  const editor = await import('../ui/modals/cellEditor.js');
+  editor.openCellEditor(2, 0); editor.selectShiftForCell('S'); editor.confirmCellEdit();
+  await Promise.resolve();
+  expect(state.store.schedule[2][0].id).toBe('S'); expect(state.store.edited[2][0]).toBe(true);
+  expect(firebase.set.mock.calls.at(-1)[1].weeks[current].schedule[2][0].id).toBe('S');
+  expect(state.store.weekRosters[current][2].id).toBe('c');
+});
+it('does not expose a weekly removal audit before acknowledgement or retain it after failure', async () => {
+  let fail;
+  firebase.set.mockImplementation((_ref, payload) => { delivery(payload); return new Promise((_done, reject) => { fail = reject; }); });
+  const operation = state.mutateWeekRoster({ operation: 'remove', targetId: 'a', confirmation: 'ELIMINAR' });
+  expect(state.store.persistenceStatus).toBe('pending'); expect(state.store.logEntries).toEqual([]);
+  expect(firebase.set.mock.calls[0][1].logEntries[0].employeeId).toBe('a');
+  fail(new Error('Remove failed')); expect((await operation).ok).toBe(false);
+  expect(state.store.logEntries).toEqual([]);
+  expect(state.store.weekRosters[current]).toEqual(source.weekRosters[current]);
+});
+it('excludes a deleted historical catalog identity from actual future generation', async () => {
+  const { DEFAULT_EMPLOYEES } = await import('../config/employees.js');
+  const { buildWeek } = await import('../domain/schedule.js');
+  const employees = DEFAULT_EMPLOYEES.map((e, i) => ({ id: `synthetic-${i}`, name: `Synthetic ${i}`, active: true, freeDay: e.freeDay }));
+  const removed = { id: 'extra', name: 'Synthetic extra', active: true, freeDay: 0 };
+  const fixture = copy(source); fixture.EMPLOYEES = [...employees, removed];
+  fixture.weekRosters[current] = copy(fixture.EMPLOYEES);
+  fixture.weeks[current] = { schedule: fixture.EMPLOYEES.map(() => Array.from({length:7},()=>({id:'OFF',bs:null,bd:1}))), edited: fixture.EMPLOYEES.map(()=>Array(7).fill(false)) };
+  delivery(fixture);
+  expect((await state.deleteCatalogEmployee({ employeeId: 'extra', confirmation: 'ELIMINAR' })).ok).toBe(true);
+  const active = state.getActiveEmployees(); const schedule = buildWeek(1, active, state.store.SH);
+  expect(schedule).toHaveLength(6); expect(active.map(e=>e.id)).not.toContain('extra');
+  expect(state.store.weekRosters[current].at(-1).id).toBe('extra');
 });

@@ -6,6 +6,7 @@ import { render } from '../ui/layout.js';
 import { animateWeekNavigation } from '../ui/navigationMotion.js';
 import { closeModal } from '../ui/modals/modal.js';
 import { openShiftBaseEditor } from '../ui/modals/shiftEditor.js';
+import { openWeekTeamEditor } from '../ui/modals/weekTeamEditor.js';
 import { openEmployeesEditor } from '../ui/modals/empEditor.js';
 import { DEFAULT_SHIFTS } from '../config/shifts.js';
 import { DEFAULT_EMPLOYEES } from '../config/employees.js';
@@ -256,6 +257,7 @@ export function setupEvents() {
 
   document.getElementById('bEditShifts')?.addEventListener('click', openShiftBaseEditor);
   document.getElementById('bEditEmps')?.addEventListener('click', openEmployeesEditor);
+  document.getElementById('bEditWeek')?.addEventListener('click', openWeekTeamEditor);
 
   document.querySelectorAll('.tab').forEach(t => {
     t.addEventListener('click', () => {

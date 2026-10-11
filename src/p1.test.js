@@ -111,12 +111,13 @@ it.each(['rename', 'freeDay', 'delete'])('preserves history during employee %s',
   const before = snapshot();
   document.getElementById('edEmpName').value = operation === 'rename' ? 'Changed' : store.EMPLOYEES[0].name;
   document.getElementById('edEmpDay').value = operation === 'freeDay' ? '1' : '0';
-  if (operation === 'delete') deleteEmployee(0); else saveEmployeeEdit(0);
+  if (operation === 'delete') deleteEmployee(store.EMPLOYEES[0].id); else saveEmployeeEdit(0);
   expect(store.weeks).toEqual(before.weeks);
   expect(store.weekRosters[key][0].name).toBe(before.EMPLOYEES[0].name);
   if (operation === 'delete') {
     expect(set).not.toHaveBeenCalled();
-    expect(log).toHaveBeenCalledWith(expect.stringMatching(/bloquead|guardad/i), 'err');
+    expect(nodes.modalBody.innerHTML).toContain('Este empleado tiene historial guardado.');
+    expect(nodes.modalBody.innerHTML).toContain('destructiveConfirmation');
   } else expect(set).toHaveBeenCalledTimes(1);
 });
 it.each(['shift', 'toggle', 'break'])('discards staged %s edits, including a later unrelated save', operation => {
@@ -312,12 +313,13 @@ it.each(['rename', 'freeDay', 'delete'])('preserves historical attribution durin
   set.mockClear(); log.mockClear();
   document.getElementById('edEmpName').value = operation === 'rename' ? 'Changed' : store.EMPLOYEES[0].name;
   document.getElementById('edEmpDay').value = operation === 'freeDay' ? '1' : '0';
-  if (operation === 'delete') deleteEmployee(0); else saveEmployeeEdit(0);
+  if (operation === 'delete') deleteEmployee(store.EMPLOYEES[0].id); else saveEmployeeEdit(0);
   expect(store.weeks).toEqual(before.weeks);
   expect(store.weekRosters[key][0].name).toBe(before.EMPLOYEES[0].name);
   if (operation === 'delete') {
     expect(set).not.toHaveBeenCalled();
-    expect(log).toHaveBeenCalledWith(expect.stringMatching(/bloquead|guardad/i), 'err');
+    expect(nodes.modalBody.innerHTML).toContain('Este empleado tiene historial guardado.');
+    expect(nodes.modalBody.innerHTML).toContain('destructiveConfirmation');
   } else expect(set).toHaveBeenCalledTimes(1);
 });
 

@@ -127,6 +127,7 @@ function editorData() {
     return [getCurrentWeekStr(), store.weekStatus === 'invalid', store.schedule[pi]?.[di],
       store.edited[pi]?.[di], getWeekEmployees()[pi], store.SH];
   }
+  if (editor?.kind === 'catalog-delete') return store.EMPLOYEES;
   if (editor?.kind === 'employee') return [editor.index, store.EMPLOYEES];
   if (editor?.kind === 'shift') return [editor.id, store.SH[editor.id]];
   if (editor?.kind === 'week-team') return [getCurrentWeekStr(), store.weekRosters[getCurrentWeekStr()], store.weeks[getCurrentWeekStr()], store.EMPLOYEES, store.SH];
@@ -159,6 +160,9 @@ function applySnapshot(v) {
   store.selectedWeek = selected;
   store.wo = weekOffset(store.baseDate, selected);
   store.logEntries = Array.isArray(v.logEntries) ? v.logEntries.filter(e => e && typeof e === 'object') : [];
+  if (pendingRosterTransition?.auditLogs && sameData(store.logEntries, pendingRosterTransition.auditLogs)) {
+    store.logEntries = clone(pendingRosterTransition.beforeLogs);
+  }
   store.weeks = v.weeks && typeof v.weeks === 'object' && !Array.isArray(v.weeks) ? v.weeks : {};
   captureLegacyWeeks();
   loadSelectedWeek(false);
@@ -279,6 +283,7 @@ export function saveState(options = {}) {
   }
   store.weeks = weeks;
   const snapshot = clone(currentSnapshot());
+  if (transition?.auditLogs) snapshot.logEntries = clone(transition.auditLogs);
   const token = ++writeSequence;
   const lifecycle = syncEpoch;
   store.pendingWrite = token;
@@ -297,6 +302,7 @@ export function saveState(options = {}) {
     }
     store.writeError = error;
     if (status === 'persisted') {
+      if (transition?.auditLogs && sameData(store.logEntries, transition.beforeLogs)) store.logEntries = clone(transition.auditLogs);
       acknowledged = snapshot;
       store.persistenceStatus = sameData(snapshot, currentSnapshot()) ? 'persisted' : 'listener';
       if (store.persistenceStatus === 'persisted' && store.schedule.length && store.weekStatus !== 'invalid') {
@@ -335,6 +341,15 @@ export async function mutateWeekRoster(request) {
     transition = { key, beforeRoster, ...planWeekRoster({ key, roster: beforeRoster, week: beforeWeek,
       employees: store.EMPLOYEES, shifts: store.SH }, request) };
   } catch (error) { return { ok: false, error: error.message }; }
+  if (request.operation === 'remove') {
+    const employee = beforeRoster.find(e => e.id === request.targetId);
+    const now = new Date();
+    const audit = { ts: now.toLocaleTimeString('es-ES', { hour12: false }), type: 'warn', operation: 'remove',
+      employeeId: employee.id, employeeName: employee.name, week: key,
+      msg: `Quitar de semana: ${employee.id} · ${employee.name} · ${key}` };
+    transition.beforeLogs = clone(store.logEntries);
+    transition.auditLogs = [audit, ...transition.beforeLogs].slice(0, 15);
+  }
   store.weekRosters = { ...store.weekRosters, [key]: transition.roster };
   store.weeks = { ...store.weeks, [key]: transition.week };
   pendingRosterTransition = transition;
@@ -361,6 +376,39 @@ export async function mutateWeekRoster(request) {
   }
   const error = store.writeError || 'No se pudo guardar el equipo de la semana.';
   loadSelectedWeek(!preserveEditor);
+  store.persistenceStatus = 'failed'; store.writeError = error;
+  cache(currentSnapshot(), 'failed'); rerender();
+  return { ok: false, error };
+}
+
+export async function deleteCatalogEmployee({ employeeId, confirmation } = {}) {
+  const lifecycle = syncEpoch;
+  let before, after, weeks, rosters;
+  try {
+    if (store.isAdmin !== true) throw new Error('Operación disponible solo para administradores.');
+    if (store.pendingWrite != null) throw new Error('Espera a que termine el guardado pendiente.');
+    if (confirmation !== 'ELIMINAR') throw new Error('Escribe exactamente ELIMINAR para eliminar del catálogo.');
+    if (!usableRoster(store.EMPLOYEES) || typeof employeeId !== 'string' || !employeeId) throw new Error('Catálogo o identidad inválidos.');
+    const index = store.EMPLOYEES.findIndex(e => e.id === employeeId);
+    if (index < 0) throw new Error('El empleado ya no existe en el catálogo.');
+    before = clone(store.EMPLOYEES);
+    after = before.filter(e => e.id !== employeeId);
+    if (!usableRoster(after)) throw new Error('No puedes eliminar al último empleado del catálogo.');
+    if (!store.weeks || Array.isArray(store.weeks) || !store.weekRosters || Array.isArray(store.weekRosters)
+        || !Object.entries(store.weeks).every(([key, week]) => weekShape(week)
+          && usableRoster(store.weekRosters[key]) && store.weekRosters[key].length === week.schedule.length)) {
+      throw new Error('Semanas o atribución guardada no válidas.');
+    }
+    weeks = clone(store.weeks); rosters = clone(store.weekRosters);
+  } catch (error) { return { ok: false, error: error.message }; }
+  store.EMPLOYEES = clone(after);
+  let ok = false;
+  try { ok = await saveState({ saveSelectedWeek: false }); }
+  catch (error) { store.writeError = error.message; }
+  if (lifecycle !== syncEpoch) return { ok: false, error: 'La sesión cambió durante el guardado.' };
+  if (ok && sameData(store.EMPLOYEES, after) && sameData(store.weeks, weeks) && sameData(store.weekRosters, rosters)) return { ok: true };
+  if (sameData(store.EMPLOYEES, after)) store.EMPLOYEES = before;
+  const error = store.writeError || 'Conflicto: los datos cambiaron durante el borrado del catálogo.';
   store.persistenceStatus = 'failed'; store.writeError = error;
   cache(currentSnapshot(), 'failed'); rerender();
   return { ok: false, error };
