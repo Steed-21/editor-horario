@@ -103,34 +103,59 @@ export function setupEvents() {
     signOut(auth);
   });
 
-  document.getElementById('bLoginSubmit')?.addEventListener('click', () => {
+  document.getElementById('loginPwdToggle')?.addEventListener('click', () => {
+    const password = document.getElementById('loginPwd');
+    const toggle = document.getElementById('loginPwdToggle');
+    const visible = password.type === 'password';
+    password.type = visible ? 'text' : 'password';
+    toggle.setAttribute('aria-label', visible ? 'Ocultar contraseña' : 'Mostrar contraseña');
+    toggle.setAttribute('aria-pressed', String(visible));
+  });
+
+  let loginPending = false;
+  document.getElementById('loginForm')?.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (loginPending) return;
     const email = document.getElementById('loginEmail').value;
     const pwd = document.getElementById('loginPwd').value;
     const errBox = document.getElementById('loginError');
     if (errBox) { errBox.style.display = 'none'; errBox.textContent = ''; }
-    if (!email || !pwd) {
+    if (!email.trim() || !pwd) {
       if (errBox) { errBox.textContent = 'Correo y contraseña son obligatorios.'; errBox.style.display = 'block'; }
       return;
     }
 
+    const form = document.getElementById('loginForm');
     const btn = document.getElementById('bLoginSubmit');
+    loginPending = true;
+    form.setAttribute('aria-busy', 'true');
     btn.textContent = 'Iniciando...';
     btn.disabled = true;
-    signInWithEmailAndPassword(auth, email, pwd)
-      .then(() => {
-        // onAuthStateChanged cierra el modal y muestra la app.
-        btn.textContent = 'Entrar';
-        btn.disabled = false;
-      })
-      .catch(() => {
-        if (errBox) {
-          errBox.textContent = 'Credenciales inválidas o usuario no autorizado.';
-          errBox.style.display = 'block';
-        }
-        btn.textContent = 'Entrar';
-        btn.disabled = false;
-      });
+    try {
+      await signInWithEmailAndPassword(auth, email, pwd);
+      // Successful authentication remains owned by onAuthStateChanged.
+    } catch (_error) {
+      if (errBox) {
+        errBox.textContent = 'Credenciales inválidas o usuario no autorizado.';
+        errBox.style.display = 'block';
+      }
+    } finally {
+      loginPending = false;
+      form.setAttribute('aria-busy', 'false');
+      btn.textContent = 'Entrar';
+      btn.disabled = false;
+    }
   });
+
+  // Bridge runtimes that omit implicit submission; retain native form validation.
+  for (const id of ['loginEmail', 'loginPwd']) {
+    document.getElementById(id)?.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' || event.isComposing) return;
+      event.preventDefault();
+      if (loginPending || event.repeat) return;
+      document.getElementById('loginForm').requestSubmit(document.getElementById('bLoginSubmit'));
+    });
+  }
 
   function navigateWeek(delta, newDateStr = null) {
     store.selectedWeek = newDateStr ? getMonday(newDateStr) : addWeeks(getCurrentWeekStr(), delta);

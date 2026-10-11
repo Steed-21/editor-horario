@@ -53,20 +53,39 @@
       </div>
     </div>
 
-  <!-- Auth gate: el login vive fuera de .container para poder bloquear toda la app sin sesión -->
-  <div class="modal-bg" id="loginBg" style="z-index: 1000; display:flex;">
-    <div class="modal" style="width: 300px;">
-      <div class="modal-title">Iniciar Sesión</div>
-      <div id="loginError" style="display:none; color:#E74C3C; font-size:11px; margin-top:8px;"></div>
-      <div class="edit-grid" style="margin-top: 1rem;">
-        <label>Correo</label>
-        <input type="email" id="loginEmail" class="editor-input" placeholder="tu@correo.com"/>
-        <label>Contraseña</label>
-        <input type="password" id="loginPwd" class="editor-input"/>
+  <!-- Keep the login gate outside the authenticated application container. -->
+  <main class="login-gate" id="loginBg" aria-labelledby="loginTitle">
+    <section class="login-shell">
+      <header class="login-brand">
+        <p class="login-identity">// SISTEMA.HORARIO</p>
+        <p class="login-context">Planificación operativa · acceso al equipo</p>
+      </header>
+      <div class="login-panel">
+        <p class="login-eyebrow">ACCESO / 01</p>
+        <h1 id="loginTitle">Tu semana,<br>en orden.</h1>
+        <p class="login-intro">Inicia sesión para consultar el horario de tu equipo.</p>
+        <form id="loginForm" class="login-form" aria-busy="false">
+          <div class="login-field">
+            <label for="loginEmail">Correo electrónico</label>
+            <input type="email" id="loginEmail" name="email" autocomplete="username" placeholder="tu@correo.com" aria-describedby="loginError" required>
+          </div>
+          <div class="login-field">
+            <label for="loginPwd">Contraseña</label>
+            <div class="login-password">
+              <input type="password" id="loginPwd" name="password" autocomplete="current-password" aria-describedby="loginError" required>
+              <button id="loginPwdToggle" type="button" class="login-password-toggle" aria-label="Mostrar contraseña" aria-pressed="false" aria-controls="loginPwd">
+                <svg class="login-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg class="login-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false"><path d="m3 3 18 18M10.6 5.1A12 12 0 0 1 12 5c6.5 0 10 7 10 7a18 18 0 0 1-3.2 4M6.3 6.3C3.5 8.5 2 12 2 12s3.5 7 10 7a12 12 0 0 0 5.7-1.7M10 10a3 3 0 0 0 4 4"/></svg>
+              </button>
+            </div>
+          </div>
+          <div id="loginError" class="login-error" role="alert" aria-atomic="true"></div>
+          <button id="bLoginSubmit" type="submit" class="login-submit">Entrar</button>
+        </form>
       </div>
-      <button class="action-btn primary" id="bLoginSubmit" style="width:100%; margin-top: 1rem; justify-content:center;">Entrar</button>
-    </div>
-  </div>
+      <footer class="login-footer"><span>HORARIOS / EQUIPO / COBERTURA</span><span>v5.1.0</span></footer>
+    </section>
+  </main>
 
   <script type="module" src="/src/main.js"></script>
 </body>
