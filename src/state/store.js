@@ -1,3 +1,4 @@
+import { planWeekRoster } from '../domain/weekRoster.js';
 import { migrateRosterState, usableRoster } from '../domain/roster.js';
 import { DEFAULT_EMPLOYEES } from '../config/employees.js';
 import { DEFAULT_SHIFTS } from '../config/shifts.js';
@@ -86,6 +87,7 @@ export function sameData(a, b) {
 // Session-only quarantine: never add markers to, normalize, or repair legacy records.
 let legacyWeeks = new Map();
 let historicalRosters = new Map();
+let pendingRosterTransition = null;
 export function weekShape(week) {
   return Array.isArray(week?.schedule) && week.schedule.length > 0
     && week.schedule.every(row => Array.isArray(row) && row.length === 7
@@ -127,6 +129,7 @@ function editorData() {
   }
   if (editor?.kind === 'employee') return [editor.index, store.EMPLOYEES];
   if (editor?.kind === 'shift') return [editor.id, store.SH[editor.id]];
+  if (editor?.kind === 'week-team') return [getCurrentWeekStr(), store.weekRosters[getCurrentWeekStr()], store.weeks[getCurrentWeekStr()], store.EMPLOYEES, store.SH];
   if (editor?.kind === 'employees') return store.EMPLOYEES;
   if (editor?.kind === 'shifts') return store.SH;
   return null;
@@ -145,6 +148,9 @@ function applySnapshot(v) {
   store.weekRosters = migrated.weekRosters;
   store.employeeCounter = migrated.employeeCounter;
   historicalRosters = new Map(Object.entries(store.weekRosters).map(([key, roster]) => [key, JSON.stringify(roster)]));
+  if (pendingRosterTransition && sameData(store.weekRosters[pendingRosterTransition.key], pendingRosterTransition.roster)) {
+    historicalRosters.set(pendingRosterTransition.key, JSON.stringify(pendingRosterTransition.beforeRoster));
+  }
   store.scheduleRoster = null;
   if (Array.isArray(v.EMPLOYEES)) store.EMPLOYEES = migrated.EMPLOYEES;
   if (v.SH && typeof v.SH === 'object' && !Array.isArray(v.SH)) store.SH = v.SH;
@@ -186,7 +192,7 @@ export function loadSelectedWeek(invalidate = true) {
   }
   store.schedule = normalizeSchedule(raw);
   store.edited = raw.map((row, pi) => row.map((_, di) => week.edited?.[pi]?.[di] === true));
-  store.weekStatus = 'loaded';
+  store.weekStatus = week.reviewRequired === true ? 'proposal' : 'loaded';
 }
 
 export function canUseShiftCatalog(shifts, weeks = store.weeks) {
@@ -239,13 +245,21 @@ function rejectPersistence(reason) {
   throw new Error(store.writeError);
 }
 
-export function saveState({ saveSelectedWeek = true } = {}) {
+const weeklyAuthorization = Symbol('selected-week roster transition');
+
+export function saveState(options = {}) {
+  const { saveSelectedWeek = true } = options;
+  const transition = options[weeklyAuthorization];
   if (!store.isAdmin) return;
   if (store.schemaVersion > 2) rejectPersistence('unsupported schema version');
   ensureRosterHistory();
   for (const [key, roster] of historicalRosters) {
     if (Object.hasOwn(store.weeks, key) && JSON.stringify(store.weekRosters[key]) !== roster) {
-      rejectPersistence('historical attribution changed');
+      if (!transition || key !== transition.key || roster !== JSON.stringify(transition.beforeRoster)
+          || JSON.stringify(store.weekRosters[key]) !== JSON.stringify(transition.roster)
+          || JSON.stringify(store.weeks[key]) !== JSON.stringify(transition.week)) {
+        rejectPersistence('historical attribution changed');
+      }
     }
   }
   if (!usableRoster(store.EMPLOYEES)) rejectPersistence('invalid employee catalog');
@@ -257,7 +271,7 @@ export function saveState({ saveSelectedWeek = true } = {}) {
     if (isLegacyWeek(wk) || store.weekStatus === 'legacy') rejectPersistence('legacy week is read-only');
     if (!usableRoster(getWeekEmployees()) || store.schedule.length !== getWeekEmployees().length
         || !store.schedule.every(row => row.length === 7)) rejectPersistence('incomplete week');
-    weeks = { ...store.weeks, [wk]: { schedule: normalizeSchedule(store.schedule), edited: store.edited.map(row => [...row]) } };
+    weeks = { ...store.weeks, [wk]: { ...(store.weeks[wk]?.reviewRequired === true ? { reviewRequired: true } : {}), schedule: normalizeSchedule(store.schedule), edited: store.edited.map(row => [...row]) } };
   }
   if (!canUseShiftCatalog(store.SH, weeks)) rejectPersistence('invalid write target or changed legacy history');
   if (saveSelectedWeek && store.schedule.length > 0) {
@@ -273,33 +287,83 @@ export function saveState({ saveSelectedWeek = true } = {}) {
   cache(snapshot, 'pending');
   rerender();
   const finish = (status, error = null) => {
-    if (store.pendingWrite !== token || lifecycle !== syncEpoch) return;
+    if (store.pendingWrite !== token || lifecycle !== syncEpoch) return false;
     store.pendingWrite = null;
     if (syncFailure) {
       store.persistenceStatus = 'failed';
       store.writeError = syncFailure;
       rerender();
-      return;
+      return false;
     }
     store.writeError = error;
     if (status === 'persisted') {
       acknowledged = snapshot;
       store.persistenceStatus = sameData(snapshot, currentSnapshot()) ? 'persisted' : 'listener';
       if (store.persistenceStatus === 'persisted' && store.schedule.length && store.weekStatus !== 'invalid') {
-        store.weekStatus = 'persisted';
+        store.weekStatus = store.weeks[getCurrentWeekStr()]?.reviewRequired === true ? 'proposal' : 'persisted';
       }
       cache(currentSnapshot(), store.persistenceStatus);
     } else store.persistenceStatus = status;
     rerender();
+    return status === 'persisted';
   };
   try {
     // Only fulfillment of this write promise acknowledges this exact payload.
     return Promise.resolve(set(ref(db, 'horario_v5_state'), snapshot)).then(
       () => finish('persisted'), error => finish('failed', String(error.message || error)));
   } catch (error) {
-    finish('failed', String(error.message || error));
-    return Promise.resolve();
+    return Promise.resolve(finish('failed', String(error.message || error)));
   }
+}
+
+// This private capability authorizes one exact selected-week transition only.
+export async function mutateWeekRoster(request) {
+  const key = getCurrentWeekStr();
+  const lifecycle = syncEpoch;
+  let beforeRoster, beforeWeek, transition;
+  try {
+    if (request?.week != null && request.week !== key) throw new Error('La semana seleccionada cambió.');
+    if (store.isAdmin !== true) throw new Error('Operación disponible solo para administradores.');
+    if (store.pendingWrite != null) throw new Error('Espera a que termine el guardado pendiente.');
+    if (!Object.hasOwn(store.weeks, key) || ['legacy', 'invalid', 'missing'].includes(store.weekStatus)
+        || isLegacyWeek(key)) throw new Error('Esta semana no permite modificar el equipo.');
+    beforeRoster = clone(store.weekRosters[key]); beforeWeek = clone(store.weeks[key]);
+    if (historicalRosters.get(key) !== JSON.stringify(beforeRoster)) throw new Error('La atribución cambió; vuelve a cargar la semana.');
+    if (!sameData(store.schedule, normalizeSchedule(beforeWeek.schedule)) || !sameData(store.edited, beforeWeek.edited)) {
+      throw new Error('Guarda o descarta los cambios de horario antes de modificar el equipo.');
+    }
+    transition = { key, beforeRoster, ...planWeekRoster({ key, roster: beforeRoster, week: beforeWeek,
+      employees: store.EMPLOYEES, shifts: store.SH }, request) };
+  } catch (error) { return { ok: false, error: error.message }; }
+  store.weekRosters = { ...store.weekRosters, [key]: transition.roster };
+  store.weeks = { ...store.weeks, [key]: transition.week };
+  pendingRosterTransition = transition;
+  const preserveEditor = store.activeEditor?.kind === 'week-team' && store.activeEditor.week === key;
+  loadSelectedWeek(!preserveEditor);
+  let ok = false;
+  try { ok = await saveState({ saveSelectedWeek: false, [weeklyAuthorization]: transition }); }
+  catch (error) { store.writeError = error.message; }
+  if (pendingRosterTransition === transition) pendingRosterTransition = null;
+  if (lifecycle !== syncEpoch) return { ok: false, error: 'La sesión cambió durante el guardado.' };
+  if (ok && (!sameData(store.weekRosters[key], transition.roster) || !sameData(store.weeks[key], transition.week))) {
+    ok = false; store.writeError = 'Conflicto: el equipo u horario cambió durante el guardado.';
+  }
+  if (ok) {
+    // Only write acknowledgement advances the intentional attribution baseline.
+    if (sameData(store.weekRosters[key], transition.roster)) historicalRosters.set(key, JSON.stringify(store.weekRosters[key]));
+    return { ok: true };
+  }
+  // Do not replace newer listener data with a failed optimistic proposal.
+  if (sameData(store.weekRosters[key], transition.roster) && sameData(store.weeks[key], transition.week)) {
+    store.weekRosters = { ...store.weekRosters, [key]: beforeRoster };
+    store.weeks = { ...store.weeks, [key]: beforeWeek };
+    historicalRosters.set(key, JSON.stringify(beforeRoster));
+  }
+  const error = store.writeError || 'No se pudo guardar el equipo de la semana.';
+  loadSelectedWeek(!preserveEditor);
+  store.persistenceStatus = 'failed'; store.writeError = error;
+  cache(currentSnapshot(), 'failed'); rerender();
+  return { ok: false, error };
 }
 
 export function clearAdminCache() {
@@ -314,6 +378,7 @@ export function clearSessionState({ admin = false } = {}) {
   syncFailure = null;
   legacyWeeks = new Map();
   historicalRosters = new Map();
+  pendingRosterTransition = null;
   Object.assign(store, {
     schemaVersion: 2, EMPLOYEES: admin ? clone(DEFAULT_EMPLOYEES) : [],
     SH: admin ? clone(DEFAULT_SHIFTS) : {}, employeeCounter: 0, customCounter: 0,

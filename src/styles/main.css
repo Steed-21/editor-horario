@@ -565,3 +565,7 @@ td.total-cell{background:transparent;vertical-align:middle;font-size:10px;font-w
   .container { --text-tertiary: #a0a09a; }
   .container .grid-wrap th:is(.vie, .sab) { color: #ef9f27; }
 }
+
+/* Reuse existing editor fields and footers for the weekly roster controls. */
+#modalBody .week-team-row { display: block; }
+#modalBody .week-team-row .editor-footer .action-btn { min-width: 0; flex: 1; }

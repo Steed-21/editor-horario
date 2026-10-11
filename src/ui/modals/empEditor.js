@@ -5,6 +5,9 @@ import { openModal } from './modal.js';
 import { render } from '../layout.js';
 import { esc } from '../../utils/escape.js';
 
+import { openWeekTeamEditor } from './weekTeamEditor.js';
+import { getCurrentWeekStr, getWeekEmployees } from '../../state/store.js';
+
 import { validFreeDay } from '../../domain/roster.js';
 
 function readDay(id) {
@@ -17,6 +20,7 @@ function validationError(message) {
   if (error) error.textContent = message;
 }
 export function openEmployeesEditor() {
+  if (!store.isAdmin) return;
   store.currentEdit = null;
   store.activeEditor = { kind: 'employees' };
   store.editorInvalidated = false;
@@ -35,10 +39,17 @@ export function openEmployeesEditor() {
 
   document.getElementById('modalBody').innerHTML = `
     <div id="employeeError" class="editor-error" role="alert"></div>
+    <h3>Equipo general · ${store.EMPLOYEES.filter(e => e.active === true).length} activos</h3>
     <button class="new-shift-btn" onclick="window.openEmployeeAdd()">+ Añadir empleado</button>
     <div class="info-box">El nuevo empleado estará disponible al crear nuevas semanas. Las semanas guardadas no cambian.</div>
     <div class="emp-list editor-list">${rows}</div>
+    <section aria-labelledby="weekTeamHeading">
+      <h3 id="weekTeamHeading">Equipo · ${esc(getCurrentWeekStr())}</h3>
+      <p>${getWeekEmployees().length} personas</p>
+      <button type="button" class="new-shift-btn" id="openWeekTeam">Modificar equipo de esta semana</button>
+    </section>
   `;
+  document.getElementById('openWeekTeam')?.addEventListener('click', openWeekTeamEditor);
   openModal();
 }
 
