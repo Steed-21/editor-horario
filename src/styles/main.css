@@ -452,3 +452,44 @@ td.total-cell{background:transparent;vertical-align:middle;font-size:10px;font-w
 /* Read-only pills share decorative hover without button or press affordances. */
 .container .reader-shift { cursor: default; filter: none; }
 .container .reader-shift:active { transform: none; }
+
+/* Authenticated backdrop only; opaque application surfaces remain unchanged. */
+.container { z-index: 1; }
+.operational-grid {
+  --grid-ink: 41, 51, 61;
+  --grid-spacing: 48px;
+  --grid-active: 0;
+  --grid-x: 50vw;
+  --grid-y: 50vh;
+  --grid-dx: 0px;
+  --grid-dy: 0px;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.operational-grid[hidden] { display: none; }
+.operational-grid::before,
+.operational-grid::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(rgb(var(--grid-ink)) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--grid-ink)) 1px, transparent 1px);
+  background-size: var(--grid-spacing) var(--grid-spacing);
+}
+.operational-grid::before { opacity: .05; }
+.operational-grid::after {
+  opacity: calc(var(--grid-active) * .1);
+  background-position: var(--grid-dx) var(--grid-dy);
+  -webkit-mask-image: radial-gradient(circle 160px at var(--grid-x) var(--grid-y), #000, transparent);
+  mask-image: radial-gradient(circle 160px at var(--grid-x) var(--grid-y), #000, transparent);
+  transition: opacity var(--motion-base) var(--motion-ease);
+}
+@media (prefers-color-scheme: dark) {
+  .operational-grid { --grid-ink: 195, 203, 211; }
+}
+@media (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce) {
+  .operational-grid::after { display: none; transition: none; }
+}
