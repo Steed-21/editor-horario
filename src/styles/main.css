@@ -493,3 +493,61 @@ td.total-cell{background:transparent;vertical-align:middle;font-size:10px;font-w
 @media (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce) {
   .operational-grid::after { display: none; transition: none; }
 }
+
+/* Compose the shared work surface without enlarging mobile controls or rows. */
+@media (min-width: 721px) {
+  .container {
+    max-width: 1240px;
+    margin-top: clamp(4px, calc((100vw - 720px) * .04), 32px);
+  }
+  .container .header {
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 24px;
+    padding-bottom: 12px;
+    margin-bottom: 14px;
+  }
+  .container .title-block { flex: 1; gap: 6px; }
+  .container .title { font-size: 20px; line-height: 1.2; font-weight: 600; }
+  .container .subtitle { font-size: 12px; line-height: 1.4; }
+  .container .status-rail { font-size: 10px; margin-top: 4px; }
+  .container .nav { gap: 8px; }
+  .container .nav-btn { font-size: 12px; min-height: 32px; padding: 6px 10px; }
+  .container #datePicker { height: 32px !important; padding: 6px 8px !important; }
+  .container .week-tag { font-size: 12px; min-height: 32px; padding: 6px 10px; display: inline-flex; align-items: center; justify-content: center; }
+  .container .tabs { margin-bottom: 10px; }
+  .container .tab { font-size: 12px; padding: 8px 14px; }
+  .container .tab.active { padding-bottom: 7px; }
+  .container .dashboard { column-gap: 20px; margin-bottom: 0; }
+  .container .grid-wrap th { font-size: 11px; }
+  .container .grid-wrap td { padding: 3px; }
+  .container .grid-wrap td.name-cell { font-size: 13px; padding: 6px 8px; }
+  .container .grid-wrap td.total-cell { font-size: 12px; }
+  .container .grid-wrap .shift-pill {
+    font-size: 12px;
+    line-height: 1.35;
+    min-height: 42px;
+    padding: 5px 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .container .grid-wrap .bk-label { font-size: 10px; }
+  .container .metric { padding: 12px; }
+  .container .m-lbl { font-size: 10px; line-height: 1.4; }
+  .container .m-val { font-size: 18px; }
+  .container .m-sub { font-size: 11px; line-height: 1.4; }
+  .container .legend-line { font-size: 11px; }
+  .container .actions { margin-top: 20px; }
+  .container .actions > .action-btn { font-size: 11px; min-height: 34px; padding: 8px 14px; }
+  .container .log-panel { margin-top: 16px; font-size: 11px; line-height: 1.6; }
+  .container #logPanel .log-entry { grid-template-columns: 78px 12px minmax(0,1fr); }
+}
+@media (min-width: 721px) and (max-width: 1000px) {
+  .container .header { flex-direction: column; align-items: stretch; gap: 16px; }
+  .container .nav { align-self: flex-end; }
+}
+@media (max-width: 720px) {
+  .container .title { font-size: 16px; line-height: 1.3; font-weight: 600; }
+}
