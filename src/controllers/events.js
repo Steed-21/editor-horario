@@ -3,6 +3,7 @@ import { buildWeek } from '../domain/schedule.js';
 import { validate } from '../domain/validation.js';
 import { log } from '../ui/components/log.js';
 import { render } from '../ui/layout.js';
+import { animateWeekNavigation } from '../ui/navigationMotion.js';
 import { closeModal } from '../ui/modals/modal.js';
 import { openShiftBaseEditor } from '../ui/modals/shiftEditor.js';
 import { openEmployeesEditor } from '../ui/modals/empEditor.js';
@@ -162,6 +163,7 @@ export function setupEvents() {
     store.wo = weekOffset(store.baseDate, store.selectedWeek);
     loadSelectedWeek();
     render();
+    if (!newDateStr) animateWeekNavigation(delta);
   }
 
   document.getElementById('datePicker')?.addEventListener('change', (e) => {

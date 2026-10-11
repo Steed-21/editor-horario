@@ -9,6 +9,7 @@ import { renderCover } from './views/cover.js';
 import { renderMetrics } from './components/metrics.js';
 import { renderLegend } from './components/legend.js';
 import { getDatesForWeek } from '../domain/dateUtils.js';
+import { renderStatusRail } from './components/statusRail.js';
 import { renderLog } from './components/log.js';
 
 function renderLegacyWeek() {
@@ -77,18 +78,12 @@ export function render() {
     modal.style.display = 'none';
     store.editorInvalidated = false;
   }
-  if (subtitleTxt) {
-    const states = {
-      loading: 'cargando', cached: 'caché local sin verificar', listener: 'datos del listener; servidor sin verificar',
-      pending: 'guardado pendiente; propuesta local', persisted: 'escritura confirmada', failed: 'guardado/sincronización fallido'
-    };
-    subtitleTxt.textContent += ` · ${states[store.persistenceStatus] || 'estado local sin verificar'}`;
-    if (Object.entries(store.SH).some(([id, sh]) => !usableShift(id, sh))) subtitleTxt.textContent += ' · catálogo parcial: turnos inválidos';
-    if (store.weekStatus === 'legacy') subtitleTxt.textContent += ' · histórico inconsistente / solo lectura';
-    if (getWeekEmployees().some(e => e?.attribution === 'legacy-observed')) subtitleTxt.textContent += ' · atribución heredada observada; original sin verificar';
-    if (store.weekStatus === 'proposal') subtitleTxt.textContent += ' · propuesta local';
-    if (store.weekStatus === 'missing') subtitleTxt.textContent += ' · semana ausente / no publicada';
-    if (store.writeError) subtitleTxt.textContent += ` · ${store.writeError}`;
-  }
+  renderStatusRail({
+    persistenceStatus: store.persistenceStatus,
+    weekStatus: store.weekStatus,
+    partialCatalog: Object.entries(store.SH).some(([id, sh]) => !usableShift(id, sh)),
+    inheritedAttribution: getWeekEmployees().some(e => e?.attribution === 'legacy-observed'),
+    writeError: store.writeError
+  });
   renderLog();
 }

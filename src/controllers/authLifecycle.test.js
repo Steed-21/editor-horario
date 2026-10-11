@@ -123,9 +123,9 @@ it.each(['Permission denied', 'Network unavailable'])('renders the synchronizati
   window._renderUI = realLayout.render;
   authChanged(admin);
   firebase.onValue.mock.calls[0][2](new Error(message));
-  expect(nodes.subtitleTxt.textContent).toContain('guardado/sincronización fallido');
-  expect(nodes.subtitleTxt.textContent).toContain(message);
-  expect(nodes.subtitleTxt.textContent).not.toContain('escritura confirmada');
+  expect(nodes.statusRail.innerHTML).toContain('guardado/sincronización fallido');
+  expect(nodes.statusRail.innerHTML).toContain(message);
+  expect(nodes.statusRail.innerHTML).not.toContain('escritura confirmada');
   expect(nodes.container.style.display).toBe('');
 });
 it('reports a synchronous listener startup failure and starts fresh only on re-authentication', () => {

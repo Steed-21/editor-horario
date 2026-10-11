@@ -29,5 +29,5 @@ it.each(zones)('uses identical civil results and the local initial calendar in %
 });
 it.each(zones)('loads and navigates saved civil weeks with real rendering in %s', zone => {
   const output = execFileSync(process.execPath, ['node_modules/vitest/vitest.mjs', 'run', 'src/controllers/dateNavigation.test.js', '--maxWorkers=1', '--minWorkers=1'], { cwd: process.cwd(), env: { ...process.env, TZ: zone }, encoding: 'utf8', timeout: 30000 });
-  expect(output).toContain('9 passed');
+  expect(output).toMatch(/Tests\s+\d+ passed/);
 });

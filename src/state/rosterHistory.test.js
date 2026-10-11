@@ -150,7 +150,7 @@ it('fails safely on a malformed historical week instead of routing it to the leg
 });
 it('shows observed legacy attribution without claiming to recover original metadata', async () => {
   const { render } = await vi.importActual('../ui/layout.js'); render();
-  expect(nodes.subtitleTxt.textContent).toContain('original sin verificar');
+  expect(nodes.statusRail.innerHTML).toContain('original sin verificar');
 });
 it('excludes a deactivated added identity from a successful future week and preserves saved attribution', async () => {
   document.getElementById('newEmpName').value = 'Synthetic temporary';

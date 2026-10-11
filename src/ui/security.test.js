@@ -14,7 +14,7 @@ const malicious = `<img src=x onerror="globalThis.pwned=1">'&`;
 let nodes;
 beforeEach(() => {
   delete globalThis.pwned;
-  nodes = Object.fromEntries(['logPanel', 'modalTitle', 'modalBody', 'modalBg', 'tContainer', 'metricsSide', 'legendBlock'].map(id => [id, { innerHTML: '', textContent: '', style: {} }]));
+  nodes = Object.fromEntries(['statusRail', 'logPanel', 'modalTitle', 'modalBody', 'modalBg', 'tContainer', 'metricsSide', 'legendBlock'].map(id => [id, { innerHTML: '', textContent: '', style: {} }]));
   vi.stubGlobal('document', { getElementById: id => nodes[id] || null, querySelector: () => null });
   store.SH = structuredClone(DEFAULT_SHIFTS);
   store.baseDate = '2026-05-11';
@@ -130,9 +130,9 @@ it.each(['loading', 'cached', 'listener', 'pending', 'failed', 'persisted'])('re
   store.isAdmin = false; store.persistenceStatus = status;
   render();
   expect(nodes.bCreateWeek.hidden).toBe(true);
-  expect(nodes.subtitleTxt.textContent).toContain('semana ausente / no publicada');
-  if (status === 'persisted') expect(nodes.subtitleTxt.textContent).toContain('escritura confirmada');
-  else expect(nodes.subtitleTxt.textContent).not.toContain('escritura confirmada');
+  expect(nodes.statusRail.innerHTML).toContain('semana ausente / no publicada');
+  if (status === 'persisted') expect(nodes.statusRail.innerHTML).toContain('escritura confirmada');
+  else expect(nodes.statusRail.innerHTML).not.toContain('escritura confirmada');
   if (status === 'loading') expect(nodes.tContainer.textContent).toContain('Cargando');
   else expect(nodes.tContainer.textContent).toContain('Sin horario');
 });
@@ -141,7 +141,7 @@ it('renders an unreferenced null definition as a partial catalog without crashin
   nodes.subtitleTxt = { textContent: '' };
   store.SH.bad = null;
   render();
-  expect(nodes.subtitleTxt.textContent).toContain('catálogo parcial');
+  expect(nodes.statusRail.innerHTML).toContain('catálogo parcial');
   openShiftBaseEditor();
   expect(nodes.modalBody.innerHTML).toContain('Catálogo parcial');
 });

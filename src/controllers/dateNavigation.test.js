@@ -6,8 +6,9 @@ import { render } from '../ui/layout.js';
 import { onValue, set } from '../services/firebase.js';
 import { DEFAULT_SHIFTS } from '../config/shifts.js';
 let nodes, handlers, snapshot;
+const animate = vi.fn();
 beforeEach(() => {
-  vi.clearAllMocks(); nodes = {}; handlers = {};
+  vi.clearAllMocks(); nodes = {}; nodes.tContainer = { style: {}, animate, innerHTML: '', textContent: '' }; handlers = {};
   vi.stubGlobal('window', { _renderUI: render });
   vi.stubGlobal('localStorage', { getItem: vi.fn(() => null), setItem: vi.fn() });
   vi.stubGlobal('document', { getElementById: id => nodes[id] ||= { style: {}, value: '', innerHTML: '', textContent: '', addEventListener: (type, fn) => { handlers[id + ':' + type] = fn; } }, querySelector: () => null, querySelectorAll: () => [] });
@@ -50,5 +51,17 @@ it('derives an unselected offset key and preserves selection through an anchor s
   onValue.mock.calls[0][1]({ val: () => structuredClone(snapshot) });
   expect(getCurrentWeekStr()).toBe('2026-10-05'); expect(store.wo).toBe(28);
   loadSelectedWeek(); render(); expect(nodes.wLabel.textContent).toBe('05/10 - 11/10');
+  expect(set).not.toHaveBeenCalled();
+});
+
+it('limits directional motion to previous/next after rendering the selected week', () => {
+  handlers['bNext:click']();
+  expect(animate).toHaveBeenCalledTimes(1);
+  expect(getCurrentWeekStr()).toBe('2026-10-12');
+  handlers['bPrev:click']();
+  expect(animate).toHaveBeenCalledTimes(2);
+  handlers['datePicker:change']({ target: { value: '2026-10-19' } });
+  expect(animate).toHaveBeenCalledTimes(2);
+  expect(getCurrentWeekStr()).toBe('2026-10-19');
   expect(set).not.toHaveBeenCalled();
 });
