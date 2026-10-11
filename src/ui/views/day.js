@@ -10,7 +10,7 @@ export function renderDay() {
   h += '</tr></thead><tbody>';
   
   for (let di = 0; di < 7; di++) {
-    h += `<tr><td class="day-label">${DF[di].slice(0,3)} ${store.currentDates[di].str}${CLOSE24.has(di) ? ' ★' : ''}</td>`;
+    h += `<tr><th scope="row" class="day-label">${DF[di].slice(0,3)} ${store.currentDates[di].str}${CLOSE24.has(di) ? ' ★' : ''}</th>`;
     for (let pi = 0; pi < EMPLOYEES.length; pi++) {
       h += `<td>${cellHTML(pi, di)}</td>`;
     }

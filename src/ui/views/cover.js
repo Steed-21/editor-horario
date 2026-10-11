@@ -11,7 +11,7 @@ export function renderCover() {
   h += '</tr></thead><tbody>';
   
   for (let hr = 9; hr <= 23; hr++) {
-    h += `<tr><td class="day-label">${hr}h</td>`;
+    h += `<tr><th scope="row" class="day-label">${hr}h</th>`;
     for (let di = 0; di < 7; di++) {
       const closeH = CLOSE24.has(di) ? 24 : 23;
       const isClose = hr >= (closeH - 2);

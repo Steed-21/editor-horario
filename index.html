@@ -17,6 +17,7 @@
       </div>
       <div class="nav">
         <button id="bLogin" class="nav-btn" style="border-color:transparent">Admin</button>
+        <label for="datePicker" class="sr-only">Semana del horario</label>
         <input type="date" id="datePicker" class="nav-btn" style="padding:2px 4px; height: 21px; font-family: inherit;"/>
         <button class="nav-btn" id="bPrev">← ant</button>
         <span class="week-tag" id="wLabel">...</span>
@@ -26,12 +27,12 @@
     <div class="dashboard">
       <div>
         <div class="tabs">
-          <button class="tab active" data-view="person">Por persona</button>
-          <button class="tab" data-view="day">Por día</button>
-          <button class="tab" data-view="cover">Cobertura</button>
-          <button class="tab" data-view="hours">Horas</button>
+          <button class="tab active" data-view="person" aria-pressed="true">Por persona</button>
+          <button class="tab" data-view="day" aria-pressed="false">Por día</button>
+          <button class="tab" data-view="cover" aria-pressed="false">Cobertura</button>
+          <button class="tab" data-view="hours" aria-pressed="false">Horas</button>
         </div>
-        <div class="grid-wrap" id="tContainer"></div>
+        <div class="grid-wrap" id="tContainer" role="region" tabindex="0" aria-label="Horario semanal — desplazamiento horizontal"></div>
         <div class="legend-block" id="legendBlock"></div>
       </div>
       <div class="metrics-side" id="metricsSide"></div>
@@ -47,7 +48,7 @@
       <!-- initial empty, renderLog fills this -->
     </div>
       <div class="modal-bg" id="modalBg">
-        <div class="modal" id="modalBox">
+        <div class="modal" id="modalBox" role="dialog" aria-modal="true" aria-labelledby="modalTitle" tabindex="-1">
           <div class="modal-title" id="modalTitle">Seleccionar turno</div>
           <div id="modalBody"></div>
           <button class="modal-close" id="modalClose">Cerrar</button>

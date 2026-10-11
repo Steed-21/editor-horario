@@ -11,7 +11,7 @@ export function renderHours() {
   
   EMPLOYEES.forEach((e, pi) => {
     let tot = 0;
-    h += `<tr><td class="name-cell">${esc(e.name)}</td>`;
+    h += `<tr><th scope="row" class="name-cell">${esc(e.name)}</th>`;
     for (let di = 0; di < 7; di++) {
       const hh = cellHours(store.schedule[pi][di]);
       tot += hh;

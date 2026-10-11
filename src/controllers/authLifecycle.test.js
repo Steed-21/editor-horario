@@ -124,9 +124,9 @@ it.each(['Permission denied', 'Network unavailable'])('renders the synchronizati
   window._renderUI = realLayout.render;
   authChanged(admin);
   firebase.onValue.mock.calls[0][2](new Error(message));
-  expect(nodes.statusRail.innerHTML).toContain('guardado/sincronización fallido');
+  expect(nodes.statusRail.innerHTML).toContain('Error al guardar');
   expect(nodes.statusRail.innerHTML).toContain(message);
-  expect(nodes.statusRail.innerHTML).not.toContain('escritura confirmada');
+  expect(nodes.statusRail.innerHTML).not.toContain('Guardado');
   expect(nodes.container.style.display).toBe('');
 });
 it('reports a synchronous listener startup failure and starts fresh only on re-authentication', () => {
@@ -207,7 +207,8 @@ it('preserves the administrator root listener, log, provenance rail and edit mar
   const { render } = await vi.importActual('../ui/layout.js'); render();
   expect(firebase.onValue.mock.calls.map(call => call[0])).toEqual(['horario_v5_state']);
   expect(nodes.logPanel.hidden).toBe(false); expect(nodes.logPanel.innerHTML).toContain('Synthetic activity');
-  expect(nodes.statusRail.innerHTML).toContain('listener');
+  expect(store.persistenceStatus).toBe('listener');
+  expect(nodes.statusRail.innerHTML).not.toContain('listener');
   expect(nodes.tContainer.innerHTML).toContain(' edited'); expect(nodes.tContainer.innerHTML).toContain('onclick=');
   expect(nodes.metricsSide.innerHTML).toContain('Ediciones');
 });

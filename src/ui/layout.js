@@ -16,12 +16,15 @@ function renderLegacyWeek() {
   const week = store.weeks[getCurrentWeekStr()];
   const heading = '<div class="info-box">Semana heredada inconsistente · solo lectura. Horas no disponibles.</div>';
   const header = DS.map((day, di) => `<th>${esc(day)} ${esc(store.currentDates[di].str)}</th>`).join('');
-  const rows = week.schedule.map((row, pi) => `<tr><td class="name-cell">${esc(getWeekEmployees()[pi]?.name ?? `Fila ${pi + 1}`)}</td>${row.map(cell =>
+  const rows = week.schedule.map((row, pi) => `<tr><th scope="row" class="name-cell">${esc(getWeekEmployees()[pi]?.name ?? `Fila ${pi + 1}`)}</th>${row.map(cell =>
     `<td>${Object.hasOwn(store.SH, cell.id) ? esc(cell.id) : `Sin definición: ${esc(cell.id)}`}</td>`).join('')}</tr>`).join('');
   return `${heading}<table><thead><tr><th></th>${header}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 export function render() {
+  document.querySelectorAll?.('.tab[data-view]').forEach(button => {
+    button.setAttribute('aria-pressed', String(button.dataset.view === store.view));
+  });
   store.currentDates = getDatesForWeek(getCurrentWeekStr(), 0);
   
   const wLabel = document.getElementById('wLabel');

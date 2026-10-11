@@ -12,7 +12,7 @@ export function renderPerson() {
   
   EMPLOYEES.forEach((e, pi) => {
     const tot = totalH(pi);
-    h += `<tr><td class="name-cell">${esc(e.name)}</td>`;
+    h += `<tr><th scope="row" class="name-cell">${esc(e.name)}</th>`;
     for (let di = 0; di < 7; di++) {
       h += `<td>${cellHTML(pi, di)}</td>`;
     }

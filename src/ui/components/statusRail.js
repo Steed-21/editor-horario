@@ -1,15 +1,14 @@
 import { esc } from '../../utils/escape.js';
 
 const persistenceLabels = {
-  loading: 'cargando', cached: 'caché local sin verificar',
-  listener: 'datos del listener; servidor sin verificar',
-  pending: 'guardado pendiente; propuesta local', persisted: 'escritura confirmada',
-  failed: 'guardado/sincronización fallido'
+  loading: 'Cargando…', cached: 'Datos locales',
+  pending: 'Guardando…', persisted: 'Guardado', failed: 'Error al guardar'
 };
+let presentation;
 
 export function statusItems({ persistenceStatus, weekStatus, partialCatalog, inheritedAttribution, writeError }) {
-  const kind = Object.hasOwn(persistenceLabels, persistenceStatus) ? persistenceStatus : 'local';
-  const items = [{ kind, text: persistenceLabels[kind] || 'estado local sin verificar' }];
+  const items = Object.hasOwn(persistenceLabels, persistenceStatus)
+    ? [{ kind: persistenceStatus, text: persistenceLabels[persistenceStatus] }] : [];
   if (partialCatalog) items.push({ kind: 'warning', text: 'catálogo parcial: turnos inválidos' });
   if (weekStatus === 'legacy') items.push({ kind: 'warning', text: 'histórico inconsistente / solo lectura' });
   if (weekStatus === 'invalid') items.push({ kind: 'failed', text: 'Horario no disponible: datos inválidos.' });
@@ -20,12 +19,32 @@ export function statusItems({ persistenceStatus, weekStatus, partialCatalog, inh
   return items;
 }
 
+function paintRail(state) {
+  const items = statusItems(state.input).filter(item => item.kind !== 'persisted' || state.successVisible);
+  state.markup = items.map(item => `<span class="state-chip state-${item.kind}">${esc(item.text)}</span>`).join('');
+  if (state.rail.innerHTML !== state.markup) state.rail.innerHTML = state.markup;
+  state.rail.setAttribute?.('data-persistence', state.input.persistenceStatus);
+}
+
 export function renderStatusRail(input) {
   const rail = document.getElementById('statusRail');
+  if (!rail || presentation?.rail !== rail || presentation?.input.persistenceStatus !== input.persistenceStatus) {
+    clearTimeout(presentation?.timer);
+    presentation = rail ? { rail, input: { ...input }, successVisible: input.persistenceStatus === 'persisted' } : undefined;
+    if (presentation?.successVisible) {
+      const state = presentation;
+      state.timer = setTimeout(() => {
+        state.timer = undefined;
+        state.successVisible = false;
+        // A reader transition or a replaced rail must not receive delayed admin output.
+        if (presentation !== state || typeof document === 'undefined' || document.getElementById('statusRail') !== rail
+          || rail.innerHTML !== state.markup
+          || (rail.getAttribute && rail.getAttribute('data-persistence') !== 'persisted')) return;
+        paintRail(state);
+      }, 1500);
+    }
+  }
   if (!rail) return;
-  const items = statusItems(input);
-  const markup = items.map(item => `<span class="state-chip state-${item.kind}">${esc(item.text)}</span>`).join('');
-  // Keep identical deliveries quiet; the stable rail owns acknowledgement motion.
-  if (rail.innerHTML !== markup) rail.innerHTML = markup;
-  rail.setAttribute?.('data-persistence', items[0].kind);
+  presentation.input = { ...input };
+  paintRail(presentation);
 }

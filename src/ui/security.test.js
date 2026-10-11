@@ -92,6 +92,12 @@ it('preserves ordinary employee names, shift labels and log text', () => {
   renderLog();
   expect(nodes.logPanel.innerHTML).toContain('Horario actualizado');
 });
+it('keeps missing-break text on the inherited accessible foreground', () => {
+  store.schedule[0][0] = { id: 'M', bs: null, bd: 1 };
+  const html = cellHTML(0, 0);
+  expect(html).toContain('<span class="bk-label">sin ⏸</span>');
+  expect(html).not.toContain('style="color:');
+});
 
 it.each([false, true])('shares pill presentation while preserving reader semantics with edited=%s', edited => {
   store.SH.X1.cls = 'tCUSTOM';
@@ -150,8 +156,8 @@ it.each(['loading', 'cached', 'listener', 'pending', 'failed', 'persisted'])('re
   render();
   expect(nodes.bCreateWeek.hidden).toBe(false);
   expect(nodes.statusRail.innerHTML).toContain('semana ausente / no publicada');
-  if (status === 'persisted') expect(nodes.statusRail.innerHTML).toContain('escritura confirmada');
-  else expect(nodes.statusRail.innerHTML).not.toContain('escritura confirmada');
+  if (status === 'persisted') expect(nodes.statusRail.innerHTML).toContain('Guardado');
+  else expect(nodes.statusRail.innerHTML).not.toContain('Guardado');
   if (status === 'loading') expect(nodes.tContainer.textContent).toContain('Cargando');
   else expect(nodes.tContainer.textContent).toContain('Sin horario');
 });

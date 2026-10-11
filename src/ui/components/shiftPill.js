@@ -11,7 +11,7 @@ export function cellHTML(pi, di) {
     const bd = cell.bd || 1;
     bk = `<span class="bk-label">⏸${formatHour(cell.bs)}–${formatHour(cell.bs + bd)}</span>`;
   } else if (sh.id !== 'OFF' && !['PRE','PRE2','POST','POSTF','S'].includes(sh.id) && cellHours(cell) >= 7) {
-    bk = `<span class="bk-label" style="color:#FFD700">sin ⏸</span>`;
+    bk = `<span class="bk-label">sin ⏸</span>`;
   }
   const ec = store.isAdmin && store.edited[pi][di] ? ' edited' : '';
   
