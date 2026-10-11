@@ -1,7 +1,7 @@
 import { ensureRosterHistory, getWeekEmployees, store, isLegacyWeek } from '../../state/store.js';
 import { DF } from '../../config/constants.js';
 import { shiftGrossHours, shiftNetHours, usableShift, usableCell } from '../../domain/shift.js';
-import { cellHours, makeCell } from '../../domain/cell.js';
+import { cellHours, makeCell, borderClass } from '../../domain/cell.js';
 import { log } from '../components/log.js';
 import { openModal, closeModal } from './modal.js';
 import { render } from '../layout.js';
@@ -29,7 +29,7 @@ export function renderCellModal(cell) {
     const gh = shiftGrossHours(sh);
     const nh = shiftNetHours(sh);
     const hText = sh.start === sh.end ? 'Turno sin horas' : (sh.defaultBs != null ? `${nh}h netas (${gh}h bruto)` : `${nh}h`);
-    return `<button class="shift-opt ${esc(sh.cls)}${sel}" onclick="window.selectShiftForCell(${jsArg(id)})"><span class="opt-time">${esc(sh.abbr || id)} · ${esc(lb)}</span><span class="opt-h">${esc(sh.name)}${hText ? ' · ' + hText : ''}</span></button>`;
+    return `<button class="shift-opt ${esc(sh.cls)} ${borderClass(makeCell(id))}${sel}" aria-pressed="${cell.id === id}" onclick="window.selectShiftForCell(${jsArg(id)})"><span class="selection-mark" aria-hidden="true">✓</span><span class="opt-time">${esc(sh.abbr || id)} · ${esc(lb)}</span><span class="opt-h">${esc(sh.name)}${hText ? ' · ' + hText : ''}</span></button>`;
   }).join('');
 
   const sh = store.SH[cell.id];
@@ -44,18 +44,18 @@ export function renderCellModal(cell) {
   ` : `
     <div class="section-title">Descanso individual</div>
     <div class="edit-grid">
-      <label>Descanso</label>
+      <span class="field-label">Descanso</span>
       <div class="break-toggle">
         <input type="checkbox" id="cellBrk" ${brkA ? 'checked' : ''} ${!canBrk ? 'disabled' : ''} onchange="window.toggleCellBreak()"/>
-        <label for="cellBrk" style="text-transform:none;letter-spacing:0">${canBrk ? 'Incluir descanso' : 'Turno corto'}</label>
+        <label for="cellBrk" class="toggle-label">${canBrk ? 'Incluir descanso' : 'Turno corto'}</label>
       </div>
-      ${brkA ? `<label>Inicio/Dur.</label><div class="editor-row" style="gap:4px">
-        <input type="number" step="0.5" id="cellBs" min="${esc(bsMin)}" max="${bsMax}" value="${esc(cell.bs)}" onchange="window.updateCellBreak()" style="width:60px"/>
-        <select id="cellBd" onchange="window.updateCellBreak()">
+      ${brkA ? `<label for="cellBs">Inicio/Dur.</label><div class="editor-row break-row">
+        <input type="number" step="0.5" id="cellBs" min="${esc(bsMin)}" max="${bsMax}" value="${esc(cell.bs)}" onchange="window.updateCellBreak()" aria-label="Inicio del descanso"/>
+        <select aria-label="Duración del descanso" id="cellBd" onchange="window.updateCellBreak()">
           <option value="1" ${(cell.bd||1) !== 0.5 ? 'selected' : ''}>1h</option>
           <option value="0.5" ${(cell.bd||1) === 0.5 ? 'selected' : ''}>30m</option>
         </select>
-        <span style="font-size:10px;color:var(--text-tertiary)">→ ${formatHour(cell.bs + (cell.bd||1))}</span>
+        <span class="field-hint">→ ${formatHour(cell.bs + (cell.bd||1))}</span>
       </div>` : ''}
     </div>
     <div class="info-box"><strong>Horas netas:</strong> ${netH}h (${sh.end - sh.start}h bruto${brkA ? ' − ' + ((cell.bd||1)===0.5?'30m':'1h') + ' descanso' : ''})</div>
@@ -65,7 +65,7 @@ export function renderCellModal(cell) {
     <div class="section-title">Turno</div>
     <div class="shift-opts">${opts}</div>
     ${brkS}
-    <div style="margin-top:.75rem"><button class="action-btn primary" onclick="window.confirmCellEdit()" style="width:100%">Aplicar cambios</button></div>
+    <div class="editor-footer"><button class="action-btn primary" onclick="window.confirmCellEdit()">Aplicar cambios</button></div>
   `;
 }
 

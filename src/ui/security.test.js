@@ -145,3 +145,14 @@ it('renders an unreferenced null definition as a partial catalog without crashin
   openShiftBaseEditor();
   expect(nodes.modalBody.innerHTML).toContain('Catálogo parcial');
 });
+
+it('renders severity cues in existing order without altering log data or adding live announcements', () => {
+  store.logEntries = ['err', 'warn', 'ok', 'info'].map((type, i) => ({ ts: `10:00:0${3-i}`, msg: `Message ${type}`, type }));
+  const before = structuredClone(store.logEntries);
+  renderLog();
+  const html = nodes.logPanel.innerHTML;
+  expect([...html.matchAll(/class="log-severity" aria-hidden="true">([^<]+)/g)].map(m => m[1])).toEqual(['!', '▲', '✓', '·']);
+  expect([...html.matchAll(/Message (err|warn|ok|info)/g)].map(m => m[1])).toEqual(['err', 'warn', 'ok', 'info']);
+  expect(html).toContain('Error:'); expect(html).toContain('Advertencia:');
+  expect(html).not.toContain('aria-live'); expect(store.logEntries).toEqual(before);
+});

@@ -352,3 +352,98 @@ td.total-cell{background:transparent;vertical-align:middle;font-size:10px;font-w
 .container .dashboard > * { min-width: 0; }
 /* Contain directional content motion while retaining room for focus outlines. */
 .container .dashboard { overflow-x: clip; overflow-clip-margin: 4px; }
+
+/* Internal editors + activity ledger V1; outer Motion V1 remains intact. */
+#modalBody .section-title { color: var(--text-secondary); margin-bottom: .65rem; }
+#modalBody .shift-opts { gap: 12px; padding: 4px; }
+#modalBody .shift-opt {
+  position: relative; padding-right: 30px; min-width: 0; white-space: normal;
+  color: var(--text-primary); background-color: var(--bg-secondary);
+  border-color: var(--border-tertiary); outline: none;
+  transition: transform var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease);
+}
+#modalBody .shift-opt.selected {
+  box-shadow: 0 0 0 1px var(--bg-primary), 0 0 0 3px var(--text-primary);
+  border-color: var(--text-primary);
+}
+#modalBody .shift-opt:focus-visible { outline: 2px dashed var(--text-primary); outline-offset: 5px; }
+#modalBody .shift-opt .opt-time { font-weight: 600; }
+#modalBody .shift-opt .opt-h { color: inherit; opacity: 1; overflow-wrap: anywhere; }
+#modalBody .selection-mark {
+  position: absolute; right: 6px; top: 6px; width: 18px; height: 18px;
+  display: grid; place-items: center; border-radius: 2px;
+  background: var(--text-primary); color: var(--bg-primary); font-weight: 700; opacity: 0;
+}
+#modalBody .selected .selection-mark { opacity: 1; }
+#modalBody .edit-grid { gap: 10px 12px; margin: .75rem 0; }
+#modalBody :is(.edit-grid label, .field-label) { font-size: 10px; color: var(--text-secondary); }
+#modalBody .editor-row { min-width: 0; }
+#modalBody .editor-row :is(input[type="text"], select) { width: 100%; min-width: 0; }
+#modalBody .edit-grid :is(input:not([type="checkbox"]), select) {
+  min-height: 32px; padding: 6px 8px; border-color: var(--border-secondary); font-variant-numeric: tabular-nums;
+}
+#modalBody .editor-row input[type="number"] { width: 76px; flex-shrink: 0; }
+#modalBody .break-row { gap: 6px; flex-wrap: wrap; }
+#modalBody .break-row select { width: auto; flex: 1; }
+#modalBody .toggle-label { text-transform: none; letter-spacing: 0; }
+#modalBody .field-hint { font-size: 10px; color: var(--text-secondary); }
+#modalBody .info-box { border-left: 2px solid var(--border-secondary); padding: 8px 10px; overflow-wrap: anywhere; }
+#modalBody .info-box strong { color: var(--text-primary); }
+#modalBody .editor-footer { display: flex; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-tertiary); }
+#modalBody .editor-footer .primary { flex: 1; }
+#modalBody .editor-footer .action-btn { min-height: 32px; }
+#modalBody .editor-error { color: #A32D2D; font-size: 11px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+#modalBody .editor-error:not(:empty) { margin-bottom: 10px; padding: 8px; border: 1px solid currentColor; border-radius: 3px; }
+#modalBody .editor-list { margin-top: .75rem; }
+#modalBody :is(.emp-item, .shift-item) { border: 1px solid var(--border-tertiary); gap: 6px; }
+#modalBody .emp-item { grid-template-columns: minmax(0,1fr) auto auto auto; }
+#modalBody .emp-name { overflow-wrap: anywhere; }
+#modalBody .emp-day { margin-top: 4px; color: var(--text-secondary); line-height: 1.5; }
+#modalBody .employee-status { display: inline-block; font-size: 9px; padding: 0 3px; border: 1px solid var(--border-secondary); border-radius: 2px; color: var(--text-primary); }
+#modalBody .emp-item.inactive { border-left: 2px dashed var(--border-secondary); background: var(--bg-primary); }
+#modalBody .state-action { border-style: dashed; }
+#modalBody .del { color: #A32D2D; border-color: var(--border-secondary); }
+#modalBody .del:hover { border-color: currentColor; }
+#modalBody .shift-item { grid-template-columns: auto minmax(0,1fr) auto auto; }
+#modalBody .shift-item.custom { border-left: 2px solid #7F77DD; }
+#modalBody .sh-info { overflow-wrap: anywhere; line-height: 1.65; }
+#modalBody .sh-info strong { color: var(--text-primary); }
+#modalBody .shift-origin { display: block; font-size: 8px; font-weight: 400; color: var(--text-secondary); margin-top: 4px; }
+#modalBody .row-spacer { width: 24px; }
+#modalBody :is(.emp-item, .shift-item) button { min-height: 28px; }
+#logPanel { max-height: 160px; padding: 8px; }
+#logPanel .log-entry { display: grid; grid-template-columns: 68px 12px minmax(0,1fr); gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--border-tertiary); align-items: baseline; }
+#logPanel .log-entry:last-child { border-bottom: none; }
+#logPanel .log-entry:first-child .log-time { font-weight: 600; color: var(--text-secondary); }
+#logPanel .log-time { min-width: 0; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+#logPanel .log-severity { color: var(--text-secondary); text-align: center; font-weight: 600; }
+#logPanel .log-msg { color: var(--text-primary); overflow-wrap: anywhere; min-width: 0; }
+#logPanel .log-msg.warn { color: #85510F; }
+#logPanel .log-msg.err { color: #A32D2D; }
+#logPanel .log-msg.ok { color: #177D5D; }
+@media (prefers-color-scheme: dark) {
+  #modalBody :is(.editor-error, .del), #modalBody .info-box .err, #logPanel .log-msg.err { color: #f0a7a7; }
+  #logPanel .log-msg.warn { color: #EF9F27; }
+  #logPanel .log-msg.ok { color: #5DCAA5; }
+}
+@media (max-width:600px) {
+  #modalBody .emp-item { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  #modalBody .emp-item > div { grid-column: 1 / -1; }
+  #modalBody :is(.emp-item, .shift-item) button { min-height: 40px; padding: 8px; }
+  #modalBody .shift-item { grid-template-columns: minmax(0,1fr) auto auto; }
+  #modalBody .sh-id { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 8px; }
+  #modalBody .shift-origin { display: inline; }
+  #modalBody .edit-grid { grid-template-columns: minmax(0,1fr); gap: 6px; }
+  #modalBody .edit-grid :is(input:not([type="checkbox"]), select), #modalBody .editor-footer .action-btn { min-height: 44px; }
+  #modalBody .editor-footer .action-btn { min-width: 0; flex: 1; }
+  #modalBody .break-toggle { min-height: 44px; }
+  #modalBody .break-toggle input { width: 20px; height: 20px; }
+  #logPanel { max-height: 140px; font-size: 10px; }
+  #logPanel .log-entry { grid-template-columns: 62px 10px minmax(0,1fr); gap: 4px; }
+}
+@media (prefers-reduced-motion: reduce) { #modalBody .shift-opt { transition: none; } }
+
+/* Reuse schedule hour colors on choices, with readable text on each surface. */
+#modalBody .shift-opt:is(.border-off, .border-7h, .border-8h) { color: #1a1a1a; }
+#modalBody .shift-opt:is(.border-6h, .border-other) { color: #fff; }

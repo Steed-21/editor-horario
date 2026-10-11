@@ -132,7 +132,17 @@ it.each(['shift', 'toggle', 'break'])('discards staged %s edits, including a lat
   expect(set.mock.calls[0][1].weeks[key].schedule).toEqual(before);
 });
 it('applies staged edits once and copies schedule and edited arrays', () => {
-  openCellEditor(0, 1); selectShiftForCell('OFF'); confirmCellEdit(); confirmCellEdit();
+  openCellEditor(0, 1);
+  const options = () => [...nodes.modalBody.innerHTML.matchAll(/<button class="shift-opt ([^"]*)" aria-pressed="(true|false)"/g)];
+  expect(options().filter(option => option[2] === 'true')).toHaveLength(1);
+  expect(options().find(option => option[2] === 'true')[1]).toContain('selected');
+  const original = store.schedule[0][1].id;
+  selectShiftForCell('OFF');
+  expect(options().filter(option => option[2] === 'true')).toHaveLength(1);
+  expect(options().find(option => option[2] === 'true')[1]).toContain(store.SH.OFF.cls);
+  expect(store.currentEdit.draft.id).toBe('OFF');
+  expect(store.schedule[0][1].id).toBe(original);
+  confirmCellEdit(); confirmCellEdit();
   expect(set).toHaveBeenCalledTimes(1);
   expect(store.schedule[0][1].id).toBe('OFF');
   const saved = structuredClone(store.weeks[key]);
@@ -309,4 +319,19 @@ it.each(['rename', 'freeDay', 'delete'])('preserves historical attribution durin
     expect(set).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(expect.stringMatching(/bloquead|guardad/i), 'err');
   } else expect(set).toHaveBeenCalledTimes(1);
+});
+
+it('exposes one draft selection as it moves across the available shifts', () => {
+  openCellEditor(0, 1);
+  const original = structuredClone(store.schedule);
+  for (const id of Object.keys(store.SH)) {
+    selectShiftForCell(id);
+    const selected = [...nodes.modalBody.innerHTML.matchAll(/<button class="shift-opt ([^"]*)" aria-pressed="true"[^>]*>([\s\S]*?)<\/button>/g)];
+    expect(selected).toHaveLength(1);
+    expect(selected[0][1]).toContain('selected');
+    expect(selected[0][1]).toContain(store.SH[id].cls);
+    expect(store.currentEdit.draft.id).toBe(id);
+  }
+  expect(store.schedule).toEqual(original);
+  expect(set).not.toHaveBeenCalled();
 });

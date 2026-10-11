@@ -22,23 +22,22 @@ export function openEmployeesEditor() {
   store.editorInvalidated = false;
   document.getElementById('modalTitle').textContent = 'Gestión de empleados';
   const rows = store.EMPLOYEES.map((e, i) => `
-    <div class="emp-item">
+    <div class="emp-item ${e.active === false ? 'inactive' : 'active'}">
       <div>
         <div class="emp-name">${esc(e.name)}</div>
-        <div class="emp-day">${e.active === false ? 'Inactivo' : 'Activo'} · Libre por defecto: ${DF[e.freeDay]}</div>
+        <div class="emp-day"><span class="employee-status">${e.active === false ? 'Inactivo' : 'Activo'}</span> · Libre por defecto: ${DF[e.freeDay]}</div>
       </div>
       <button onclick="window.openEmployeeEdit(${i})">Editar</button>
-      <button onclick="window.deactivateEmployee(${i})">${e.active === false ? 'Activar' : 'Desactivar'}</button>
+      <button class="state-action" onclick="window.deactivateEmployee(${i})">${e.active === false ? 'Activar' : 'Desactivar'}</button>
       <button class="del" aria-label="Eliminar ${esc(e.name)}" onclick="window.deleteEmployee(${i})">×</button>
-      <span style="width:4px"></span>
     </div>
   `).join('');
 
   document.getElementById('modalBody').innerHTML = `
-    <div id="employeeError" role="alert"></div>
+    <div id="employeeError" class="editor-error" role="alert"></div>
     <button class="new-shift-btn" onclick="window.openEmployeeAdd()">+ Añadir empleado</button>
     <div class="info-box">El nuevo empleado estará disponible al crear nuevas semanas. Las semanas guardadas no cambian.</div>
-    <div class="emp-list" style="margin-top:.75rem">${rows}</div>
+    <div class="emp-list editor-list">${rows}</div>
   `;
   openModal();
 }
@@ -53,15 +52,15 @@ export function openEmployeeAdd() {
   const ds = [0, 1, 2, 3, 4, 5, 6].map(d => `<option value="${d}">${DF[d]} (${dc[d]} ya libran)</option>`).join('');
   
   document.getElementById('modalBody').innerHTML = `
-    <div id="employeeError" role="alert"></div>
+    <div id="employeeError" class="editor-error" role="alert"></div>
     <div class="edit-grid">
       <label for="newEmpName">Nombre</label><div class="editor-row"><input type="text" id="newEmpName" placeholder="Nombre" autofocus/></div>
       <label for="newEmpDay">Día libre por defecto</label><div class="editor-row"><select id="newEmpDay">${ds}</select></div>
     </div>
     <div class="info-box">Disponible para nuevas semanas. Las semanas guardadas conservan sus filas originales.</div>
-    <div style="display:flex;gap:6px;margin-top:8px">
+    <div class="editor-footer">
       <button class="action-btn" onclick="window.openEmployeesEditor()">← Volver</button>
-      <button class="action-btn primary" onclick="window.confirmAddEmployee()" style="flex:1">Añadir</button>
+      <button class="action-btn primary" onclick="window.confirmAddEmployee()">Añadir</button>
     </div>
   `;
 }
@@ -97,15 +96,15 @@ export function openEmployeeEdit(idx) {
   const ds = [0, 1, 2, 3, 4, 5, 6].map(d => `<option value="${d}" ${e.freeDay === d ? 'selected' : ''}>${DF[d]}</option>`).join('');
   
   document.getElementById('modalBody').innerHTML = `
-    <div id="employeeError" role="alert"></div>
+    <div id="employeeError" class="editor-error" role="alert"></div>
     <div class="edit-grid">
       <label for="edEmpName">Nombre</label><div class="editor-row"><input type="text" id="edEmpName" value="${esc(e.name)}"/></div>
       <label for="edEmpDay">Día libre por defecto</label><div class="editor-row"><select id="edEmpDay">${ds}</select></div>
     </div>
     <div class="info-box">Nombre y día libre por defecto se aplican a semanas futuras. Las semanas guardadas conservan su atribución y horario.</div>
-    <div style="display:flex;gap:6px;margin-top:8px">
+    <div class="editor-footer">
       <button class="action-btn" onclick="window.openEmployeesEditor()">← Volver</button>
-      <button class="action-btn primary" onclick="window.saveEmployeeEdit(${idx})" style="flex:1">Guardar</button>
+      <button class="action-btn primary" onclick="window.saveEmployeeEdit(${idx})">Guardar</button>
     </div>
   `;
 }

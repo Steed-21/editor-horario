@@ -12,7 +12,12 @@ export function log(msg, type = 'info') {
 export function renderLog() {
   const logPanel = document.getElementById('logPanel');
   if(!logPanel) return;
-  logPanel.innerHTML = store.logEntries.map(e => 
-    `<div class="log-entry"><span class="log-time">[${esc(e.ts)}]</span><span class="log-msg ${esc(e.type)}">${esc(e.msg)}</span></div>`
-  ).join('');
+  const severity = {
+    info: { marker: '·', label: 'Información' }, ok: { marker: '✓', label: 'Correcto' },
+    warn: { marker: '▲', label: 'Advertencia' }, err: { marker: '!', label: 'Error' }
+  };
+  logPanel.innerHTML = store.logEntries.map(e => {
+    const cue = Object.hasOwn(severity, e.type) ? severity[e.type] : severity.info;
+    return `<div class="log-entry"><span class="log-time">[${esc(e.ts)}]</span><span class="log-severity" aria-hidden="true">${cue.marker}</span><span class="log-msg ${esc(e.type)}"><span class="sr-only">${cue.label}: </span>${esc(e.msg)}</span></div>`;
+  }).join('');
 }
